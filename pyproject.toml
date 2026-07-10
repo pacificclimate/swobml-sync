@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "swobml-sync"
+version = "0.1.0"
+description = "Sync swob-ml partner observation files from the ECCC HPFX server to a local directory tree."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "requests>=2.31",
+    "lxml>=5.0",
+]
+
+[project.scripts]
+swobml-sync = "swobml_sync.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "mypy>=1.8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/swobml_sync"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests"]
