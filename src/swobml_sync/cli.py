@@ -36,9 +36,11 @@ def main(argv: Sequence[str] | None = None, client: HttpClient | None = None) ->
         sys.stdout,
     )
     sys.stdout.write("\n")
-    # Per-file failures are reported in the summary; how they map to an exit
-    # code is defined in ticket 04 (retry and failure exit semantics).
-    return 0
+    # Successes are already persisted by run() (state + manifest). Exit non-zero
+    # when anything failed permanently so the task runner (kestra) surfaces it
+    # and the failed files are retried on the next run; zero when nothing failed,
+    # including a run with nothing to do.
+    return 1 if result.failed else 0
 
 
 if __name__ == "__main__":

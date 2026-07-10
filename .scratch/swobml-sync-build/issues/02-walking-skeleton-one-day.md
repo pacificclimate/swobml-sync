@@ -32,13 +32,13 @@ logging yet.
 
 **Blocked by:** 01 — Scaffold & CLI surface.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `swobml-sync <partner> <dir> --date <YYYYMMDD>` downloads that day's new/changed SWOB files into `cache/{day}/{station}/{file}` under the partner
-- [ ] Delta is computed from listing `(last-modified, size)` versus per-partner JSON sync state; unchanged files are skipped
-- [ ] Sync state is a per-partner flat JSON file, keyed day → station → file → {mtime, size}, rewritten atomically, recording only successful downloads
-- [ ] A timestamped JSONL manifest with rich records is always written (empty file when nothing changed)
-- [ ] stdout is a single JSON summary line `{manifest, added, changed, failed, days}`; diagnostics go to stderr
-- [ ] A second run with no upstream change downloads nothing and reports an empty delta
-- [ ] Downloads are atomic (temp file + rename); an interrupted run leaves no truncated file recorded as done
-- [ ] Tests cover parse → delta → state-merge → manifest against saved index-HTML fixtures with mocked HTTP
+- [x] `swobml-sync <partner> <dir> --date <YYYYMMDD>` downloads that day's new/changed SWOB files into `cache/{day}/{station}/{file}` under the partner
+- [x] Delta is computed from listing `(last-modified, size)` versus per-partner JSON sync state; unchanged files are skipped
+- [x] Sync state is a per-partner flat JSON file, keyed day → station → file → {mtime, size}, rewritten atomically, recording only successful downloads
+- [x] A timestamped JSONL manifest with rich records is always written (empty file when nothing changed)
+- [x] stdout is a single JSON summary line `{manifest, added, changed, failed, days}`; diagnostics go to stderr
+- [x] A second run with no upstream change downloads nothing and reports an empty delta
+- [x] Downloads are atomic (temp file + rename); an interrupted run leaves no truncated file recorded as done
+- [x] Tests cover parse → delta → state-merge → manifest against saved index-HTML fixtures with mocked HTTP

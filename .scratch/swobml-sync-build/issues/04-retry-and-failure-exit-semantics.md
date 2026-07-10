@@ -12,11 +12,11 @@ run exits non-zero if one or more files failed permanently, and zero otherwise
 
 **Blocked by:** 02 — Walking skeleton: sync one day end-to-end.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Connection errors, 429, and 5xx are retried with backoff (bounded attempts) before being treated as failures
-- [ ] A 404 on a day or station directory is treated as empty, not an error
-- [ ] A file failing after retries is logged, omitted from state and manifest, and does not abort the run
-- [ ] Successes are persisted (state + manifest) before the process exits
-- [ ] Exit code is non-zero when ≥1 file failed permanently, zero otherwise (including "nothing to do")
-- [ ] Tests cover retry-then-success, permanent failure (omitted + non-zero exit), and 404-as-empty
+- [x] Connection errors, 429, and 5xx are retried with backoff (bounded attempts) before being treated as failures
+- [x] A 404 on a day or station directory is treated as empty, not an error
+- [x] A file failing after retries is logged, omitted from state and manifest, and does not abort the run
+- [x] Successes are persisted (state + manifest) before the process exits
+- [x] Exit code is non-zero when ≥1 file failed permanently, zero otherwise (including "nothing to do")
+- [x] Tests cover retry-then-success, permanent failure (omitted + non-zero exit), and 404-as-empty

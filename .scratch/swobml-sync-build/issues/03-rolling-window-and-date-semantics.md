@@ -13,10 +13,10 @@ of an old day coexist without clobbering each other.
 
 **Blocked by:** 02 — Walking skeleton: sync one day end-to-end.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] With no `--date`, the run processes today and the previous `--days-back` days, all in UTC
-- [ ] Any `--date` given replaces the window: exactly those days are processed and `--days-back` is ignored
-- [ ] Sync state merges only the processed days; days outside the window remain untouched in state
-- [ ] Manifest and stdout summary aggregate across all processed days; `days` lists them
-- [ ] Tests cover the rolling-window day set, the `--date` override, and non-clobbering of untouched days
+- [x] With no `--date`, the run processes today and the previous `--days-back` days, all in UTC
+- [x] Any `--date` given replaces the window: exactly those days are processed and `--days-back` is ignored
+- [x] Sync state merges only the processed days; days outside the window remain untouched in state
+- [x] Manifest and stdout summary aggregate across all processed days; `days` lists them
+- [x] Tests cover the rolling-window day set, the `--date` override, and non-clobbering of untouched days

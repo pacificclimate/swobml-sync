@@ -41,3 +41,24 @@ def test_main_errors_without_required_args() -> None:
     with pytest.raises(SystemExit) as exc:
         main([])
     assert exc.value.code != 0
+
+
+class _OneFailingFileClient:
+    """Lists one station with one file whose download always fails permanently."""
+
+    def get_text(self, url: str) -> str:
+        if url.endswith("kenn/"):
+            return '<pre><a href="f.xml">f.xml</a>   2026-07-10 01:50  3.3K</pre>'
+        return '<pre><a href="kenn/">kenn/</a>   2026-07-10 01:50    -</pre>'
+
+    def download(self, url: str, dest: Path) -> None:
+        raise RuntimeError("permanent download failure")
+
+
+def test_main_exits_nonzero_when_a_file_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["nb-firewx", str(tmp_path), "--date", "20260710"], client=_OneFailingFileClient())
+    assert rc == 1
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["failed"] == 1

@@ -1,13 +1,19 @@
 """Orchestrate one run: discover, compute the delta, download, record, report.
 
-This is the walking skeleton (ticket 02): serial, single-partner, over whichever
-days the run names. For each day it lists the stations, lists each station's SWOB
-files, computes the delta against sync state, downloads exactly the delta,
-records each success into state, and collects a manifest record for it. State is
-saved once at the end (atomically) and the manifest is always written.
+Serial and single-partner, over whichever days the run names. For each day it
+lists the stations, lists each station's SWOB files, computes the delta against
+sync state, downloads exactly the delta, records each success into state, and
+collects a manifest record for it. State is saved once at the end (atomically)
+and the manifest is always written.
 
-Rolling windows, retries, concurrency, retention, and file logging are later
-tickets; the network lives entirely behind the injected :class:`HttpClient`.
+Failures are tolerated so one bad file or listing never loses the run's other
+work: transient errors are retried inside the :class:`HttpClient`; an absent day
+or station (``404``/:class:`NotFound`) is an empty listing, not a failure; and
+anything that still fails is counted, logged, and skipped so successes are
+persisted and the run exits non-zero (see the CLI) for the caller to retry.
+
+Concurrency, retention, and file logging are later tickets; the network lives
+entirely behind the injected :class:`HttpClient`.
 """
 
 from __future__ import annotations
@@ -17,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from swobml_sync import layout, state as state_mod
-from swobml_sync.client import HttpClient
+from swobml_sync.client import HttpClient, NotFound
 from swobml_sync.config import Config
 from swobml_sync.delta import ADDED, station_deltas
 from swobml_sync.listing import directories, files, parse_index
@@ -91,40 +97,93 @@ def _sync_day(
     records: list[DeltaRecord],
     result: RunResult,
 ) -> None:
-    """Discover, delta, download, and record one day for the partner."""
-    partner = config.partner
-    stations = directories(parse_index(client.get_text(layout.day_url(partner, day))))
-    log.info("day %s: %d station(s)", day, len(stations))
+    """Discover, delta, download, and record one day for the partner.
 
+    A ``404`` on the day directory means the day does not exist upstream — a
+    legitimately empty day, not a failure. Any other listing error is counted so
+    the run exits non-zero (and retries next time), but the day is skipped rather
+    than aborting the whole run.
+    """
+    partner = config.partner
+    index = _list_or_empty(client, layout.day_url(partner, day), f"day {day}", result)
+    if index is None:
+        return
+
+    stations = directories(parse_index(index))
+    log.info("day %s: %d station(s)", day, len(stations))
     for station in stations:
-        station_index = client.get_text(layout.station_url(partner, day, station))
-        entries = files(parse_index(station_index))
-        known = state.get(day, {}).get(station, {})
-        for delta in station_deltas(entries, known):
-            entry = delta.entry
-            mtime = entry.last_modified or ""
-            size = entry.size or ""
-            url = layout.file_url(partner, day, station, entry.name)
-            dest = layout.local_file_path(config.directory, partner, day, station, entry.name)
-            try:
-                client.download(url, dest)
-            except Exception as exc:  # noqa: BLE001 — one bad file must not fail the run
-                result.failed += 1
-                log.warning("download failed %s: %s", url, exc)
-                continue
-            state_mod.record(state, day, station, entry.name, mtime, size)
-            records.append(
-                DeltaRecord(
-                    path=layout.relative_file_path(partner, day, station, entry.name),
-                    action=delta.action,
-                    station=station,
-                    day=day,
-                    last_modified=mtime,
-                    size=size,
-                )
+        _sync_station(config, client, day, station, state, records, result)
+
+
+def _list_or_empty(client: HttpClient, url: str, label: str, result: RunResult) -> str | None:
+    """Fetch a directory index, or ``None`` when it should be treated as empty.
+
+    This is the one place the 404-as-empty-vs-permanent-failure policy lives, so
+    days and stations can't drift apart: a ``404`` (:class:`NotFound`) is an empty
+    listing and not counted; any other error after the client's own retries is
+    counted so the run exits non-zero, logged, and turned into ``None`` so the
+    caller skips that day or station rather than aborting the run.
+    """
+    try:
+        return client.get_text(url)
+    except NotFound:
+        log.info("%s: absent upstream, treating as empty", label)
+        return None
+    except Exception as exc:  # noqa: BLE001 — a bad listing must not abort the run
+        result.failed += 1
+        log.error("%s: listing failed, skipping: %s", label, exc)
+        return None
+
+
+def _sync_station(
+    config: Config,
+    client: HttpClient,
+    day: str,
+    station: str,
+    state: SyncState,
+    records: list[DeltaRecord],
+    result: RunResult,
+) -> None:
+    """Delta, download, and record one station's SWOB files.
+
+    Mirrors :func:`_sync_day`'s tolerance: a ``404`` is an empty station, any
+    other listing error is counted and the station skipped, and a single file
+    that fails after retries is logged and left out of state and the manifest so
+    the next run retries it while the rest of the run continues.
+    """
+    partner = config.partner
+    url = layout.station_url(partner, day, station)
+    station_index = _list_or_empty(client, url, f"station {day}/{station}", result)
+    if station_index is None:
+        return
+
+    entries = files(parse_index(station_index))
+    known = state.get(day, {}).get(station, {})
+    for delta in station_deltas(entries, known):
+        entry = delta.entry
+        mtime = entry.last_modified or ""
+        size = entry.size or ""
+        url = layout.file_url(partner, day, station, entry.name)
+        dest = layout.local_file_path(config.directory, partner, day, station, entry.name)
+        try:
+            client.download(url, dest)
+        except Exception as exc:  # noqa: BLE001 — one bad file must not fail the run
+            result.failed += 1
+            log.warning("download failed %s: %s", url, exc)
+            continue
+        state_mod.record(state, day, station, entry.name, mtime, size)
+        records.append(
+            DeltaRecord(
+                path=layout.relative_file_path(partner, day, station, entry.name),
+                action=delta.action,
+                station=station,
+                day=day,
+                last_modified=mtime,
+                size=size,
             )
-            if delta.action == ADDED:
-                result.added += 1
-            else:
-                result.changed += 1
-            log.info("%s %s", delta.action, entry.name)
+        )
+        if delta.action == ADDED:
+            result.added += 1
+        else:
+            result.changed += 1
+        log.info("%s %s", delta.action, entry.name)
