@@ -49,8 +49,13 @@ class HttpClient(Protocol):
     def download(self, url: str, dest: Path) -> None: ...
 
 
-def _retrying_session(retries: int, backoff: float) -> requests.Session:
-    """A pooled session whose adapter retries transient failures with backoff."""
+def _retrying_session(retries: int, backoff: float, pool_size: int) -> requests.Session:
+    """A pooled session whose adapter retries transient failures with backoff.
+
+    ``pool_size`` sizes the adapter's connection pool to the worker count so a
+    concurrent run reuses one connection per worker instead of opening (and
+    discarding) fresh sockets past the default pool ceiling.
+    """
     retry = Retry(
         total=retries,
         connect=retries,
@@ -62,7 +67,9 @@ def _retrying_session(retries: int, backoff: float) -> requests.Session:
         raise_on_status=True,
         respect_retry_after_header=True,
     )
-    adapter = HTTPAdapter(max_retries=retry)
+    adapter = HTTPAdapter(
+        max_retries=retry, pool_connections=pool_size, pool_maxsize=pool_size
+    )
     session = requests.Session()
     session.mount("https://", adapter)
     session.mount("http://", adapter)
@@ -79,8 +86,11 @@ class RequestsClient:
         *,
         retries: int = DEFAULT_RETRIES,
         backoff: float = DEFAULT_BACKOFF,
+        pool_size: int = 1,
     ) -> None:
-        self._session = session if session is not None else _retrying_session(retries, backoff)
+        self._session = (
+            session if session is not None else _retrying_session(retries, backoff, pool_size)
+        )
         self._timeout = timeout
 
     def get_text(self, url: str) -> str:

@@ -24,7 +24,12 @@ def main(argv: Sequence[str] | None = None, client: HttpClient | None = None) ->
         stream=sys.stderr,
         format="%(asctime)s %(levelname)s %(message)s",
     )
-    result = run(config, client if client is not None else RequestsClient())
+    # Size the real client's connection pool to the worker count so concurrent
+    # discovery and downloads reuse one connection per worker (see ticket 05).
+    result = run(
+        config,
+        client if client is not None else RequestsClient(pool_size=config.workers),
+    )
     json.dump(
         {
             "manifest": result.manifest,

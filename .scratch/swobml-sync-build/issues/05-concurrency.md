@@ -12,10 +12,10 @@ identical to a serial run.
 **Blocked by:** 03 — Rolling window & date semantics; 04 — Retry & failure/exit
 semantics.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Station listing, file listing, and downloads run through one bounded pool sized by `--workers` (default 8)
-- [ ] A single shared HTTP session is used, its connection pool sized to the worker count
-- [ ] Retry, 404-as-empty, permanent-failure-skip, and non-zero-exit semantics still hold under concurrency
-- [ ] Outputs are identical to a serial run over the same source
-- [ ] Sync-state and manifest writes remain safe with concurrent downloads feeding them
+- [x] Station listing, file listing, and downloads run through one bounded pool sized by `--workers` (default 8)
+- [x] A single shared HTTP session is used, its connection pool sized to the worker count
+- [x] Retry, 404-as-empty, permanent-failure-skip, and non-zero-exit semantics still hold under concurrency
+- [x] Outputs are identical to a serial run over the same source
+- [x] Sync-state and manifest writes remain safe with concurrent downloads feeding them
