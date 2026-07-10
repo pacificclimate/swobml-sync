@@ -28,6 +28,22 @@ swobml-sync <partner> <dir> [options]
 Every flag can be supplied via its `SWOBML_*` environment variable; an explicit
 command-line argument wins when both are present.
 
+## Output
+
+A run writes everything under `<dir>/<partner>/`:
+
+```
+<dir>/<partner>/
+  cache/<day>/<station>/<file>   downloaded SWOB files
+  manifests/<runts>.jsonl        this run's added/changed files (always written)
+  .sync-state.json               what has been downloaded (day → station → file)
+```
+
+stdout is a single JSON summary line, `{manifest, added, changed, failed, days}`;
+progress and warnings go to stderr. A re-run downloads only files that are new
+or whose upstream `(last-modified, size)` changed, so running twice against an
+unchanged source downloads nothing and writes an empty manifest.
+
 ## Development
 
 ```

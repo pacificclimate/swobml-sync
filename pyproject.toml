@@ -20,6 +20,8 @@ swobml-sync = "swobml_sync.cli:main"
 dev = [
     "pytest>=8",
     "mypy>=1.8",
+    "types-requests>=2.31",
+    "lxml-stubs>=0.5",
 ]
 
 [tool.hatch.build.targets.wheel]
