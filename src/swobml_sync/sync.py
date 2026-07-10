@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from swobml_sync import layout, state as state_mod
 from swobml_sync.client import HttpClient
@@ -41,13 +41,22 @@ class RunResult:
     days: list[str] = field(default_factory=list)
 
 
+def window_days(now: datetime, days_back: int) -> list[str]:
+    """The rolling window as ``YYYYMMDD`` strings: today and the previous
+    ``days_back`` days, newest first, all in UTC to match the source tree's
+    date partitioning."""
+    today = now.astimezone(timezone.utc).date()
+    return [(today - timedelta(days=n)).strftime(_DAY_FORMAT) for n in range(days_back + 1)]
+
+
 def run(config: Config, client: HttpClient, *, now: datetime | None = None) -> RunResult:
     """Sync ``config``'s days for its partner, returning what changed."""
     now = now or datetime.now(timezone.utc)
     runts = now.strftime(_RUNTS_FORMAT)
-    # Explicit --date days when given; otherwise just today. Ticket 03 replaces
-    # this fallback with the rolling today…today-N window.
-    days = list(config.days) or [now.strftime(_DAY_FORMAT)]
+    # Explicit --date days replace the window; otherwise the rolling lookback of
+    # today…today-N. Only these days are listed, delta'd, and merged into state,
+    # so untouched days recorded by earlier runs are never re-listed or rewritten.
+    days = list(config.days) or window_days(now, config.days_back)
 
     state = state_mod.load(layout.state_path(config.directory, config.partner))
     records: list[DeltaRecord] = []

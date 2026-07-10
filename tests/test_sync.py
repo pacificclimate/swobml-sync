@@ -8,6 +8,7 @@ canned file bodies keyed by the exact URLs :mod:`swobml_sync.layout` builds.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -68,6 +69,25 @@ def _bodies() -> dict[str, bytes]:
 
 def _config(directory: Path):  # type: ignore[no-untyped-def]
     return resolve_config([PARTNER, str(directory), "--date", DAY], env={})
+
+
+def _pages_for_days(days: list[str]) -> dict[str, str]:
+    """The fixture indexes served under each day's URLs, for a rolling-window run."""
+    pages: dict[str, str] = {}
+    for day in days:
+        pages[layout.day_url(PARTNER, day)] = _read("sync_day.html")
+        pages[layout.station_url(PARTNER, day, "kenn")] = _read("sync_kenn.html")
+        pages[layout.station_url(PARTNER, day, "eutk")] = _read("sync_eutk.html")
+    return pages
+
+
+def _bodies_for_days(days: list[str]) -> dict[str, bytes]:
+    bodies: dict[str, bytes] = {}
+    for day in days:
+        for station, names in FILES.items():
+            for name in names:
+                bodies[layout.file_url(PARTNER, day, station, name)] = f"<swob>{name}</swob>".encode()
+    return bodies
 
 
 def test_first_run_downloads_all_files(tmp_path: Path) -> None:
@@ -160,3 +180,42 @@ def test_files_grouped_by_station_directory(tmp_path: Path, station: str) -> Non
     run(_config(tmp_path), FakeClient(_pages(), _bodies()))
     for name in FILES[station]:
         assert layout.local_file_path(tmp_path, PARTNER, DAY, station, name).exists()
+
+
+NOW = datetime(2026, 7, 10, 12, 0, tzinfo=timezone.utc)
+
+
+def test_no_date_processes_rolling_window(tmp_path: Path) -> None:
+    days = ["20260710", "20260709"]
+    config = resolve_config([PARTNER, str(tmp_path), "--days-back", "1"], env={})
+    client = FakeClient(_pages_for_days(days), _bodies_for_days(days))
+
+    result = run(config, client, now=NOW)
+
+    # Both days processed, newest first; each day's three files added.
+    assert result.days == days
+    assert (result.added, result.changed, result.failed) == (6, 0, 0)
+    saved = state.load(layout.state_path(tmp_path, PARTNER))
+    assert set(saved) == set(days)
+
+
+def test_date_overrides_days_back(tmp_path: Path) -> None:
+    # A generous --days-back is ignored entirely when --date is given.
+    config = resolve_config(
+        [PARTNER, str(tmp_path), "--date", DAY, "--days-back", "5"], env={}
+    )
+    result = run(config, FakeClient(_pages(), _bodies()), now=NOW)
+    assert result.days == [DAY]
+
+
+def test_untouched_days_are_not_clobbered(tmp_path: Path) -> None:
+    # A day recorded by an earlier backfill run, outside this run's window.
+    old_day = "20260101"
+    seeded = {old_day: {"anfi": {"old.xml": {"mtime": "2026-01-01 00:00", "size": "1K"}}}}
+    state.save(layout.state_path(tmp_path, PARTNER), seeded)
+
+    run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)
+
+    saved = state.load(layout.state_path(tmp_path, PARTNER))
+    assert saved[old_day] == seeded[old_day]
+    assert DAY in saved
