@@ -301,9 +301,10 @@ def test_log_file_honours_log_level(tmp_path: Path) -> None:
 
 
 def test_untouched_days_are_not_clobbered(tmp_path: Path) -> None:
-    # A day recorded by an earlier backfill run, outside this run's window.
-    old_day = "20260101"
-    seeded = {old_day: {"anfi": {"old.xml": {"mtime": "2026-01-01 00:00", "size": "1K"}}}}
+    # A day recorded by an earlier backfill run, outside this run's window but
+    # still within the retention horizon so end-of-run purge leaves it alone.
+    old_day = "20260601"
+    seeded = {old_day: {"anfi": {"old.xml": {"mtime": "2026-06-01 00:00", "size": "1K"}}}}
     state.save(layout.state_path(tmp_path, PARTNER), seeded)
 
     run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)
@@ -311,3 +312,52 @@ def test_untouched_days_are_not_clobbered(tmp_path: Path) -> None:
     saved = state.load(layout.state_path(tmp_path, PARTNER))
     assert saved[old_day] == seeded[old_day]
     assert DAY in saved
+
+
+def test_run_reports_hour_coverage(tmp_path: Path) -> None:
+    result = run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)
+
+    # The fixture day has kenn (2 files) and eutk (1 file): two station-days,
+    # three hours of a possible 48, as an aggregate only — no day-level verdict.
+    assert result.coverage.station_days == 2
+    assert result.coverage.hours == 3
+    assert result.coverage.possible == 48
+    log_text = layout.log_path(tmp_path, PARTNER, result.runts).read_text()
+    assert "coverage 20260710/kenn: 2/24" in log_text
+    assert "coverage 20260710/eutk: 1/24" in log_text
+
+
+def test_run_purges_state_and_files_past_retention(tmp_path: Path) -> None:
+    # Seed a stale day in state and stale manifest/log files from ~190 days ago,
+    # plus a recent one still inside the 65-day horizon.
+    stale_day = "20260101"
+    recent_day = "20260601"
+    seeded = {
+        stale_day: {"anfi": {"a.xml": {"mtime": "2026-01-01 00:00", "size": "1K"}}},
+        recent_day: {"anfi": {"b.xml": {"mtime": "2026-06-01 00:00", "size": "1K"}}},
+    }
+    state.save(layout.state_path(tmp_path, PARTNER), seeded)
+    stale_runts = "20260101T000000Z"
+    recent_runts = "20260601T000000Z"
+    for runts in (stale_runts, recent_runts):
+        layout.default_manifest_path(tmp_path, PARTNER, runts).parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        layout.default_manifest_path(tmp_path, PARTNER, runts).write_text("{}\n")
+        layout.log_path(tmp_path, PARTNER, runts).parent.mkdir(parents=True, exist_ok=True)
+        layout.log_path(tmp_path, PARTNER, runts).write_text("x")
+
+    result = run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)
+
+    saved = state.load(layout.state_path(tmp_path, PARTNER))
+    # The stale day is purged from state; the recent one and this run's day stay.
+    assert stale_day not in saved
+    assert recent_day in saved
+    assert DAY in saved
+    # Stale run files are deleted; recent ones and this run's own files survive.
+    assert not layout.default_manifest_path(tmp_path, PARTNER, stale_runts).exists()
+    assert not layout.log_path(tmp_path, PARTNER, stale_runts).exists()
+    assert layout.default_manifest_path(tmp_path, PARTNER, recent_runts).exists()
+    assert layout.log_path(tmp_path, PARTNER, recent_runts).exists()
+    assert layout.default_manifest_path(tmp_path, PARTNER, result.runts).exists()
+    assert layout.log_path(tmp_path, PARTNER, result.runts).exists()

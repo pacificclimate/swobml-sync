@@ -39,6 +39,9 @@ def test_main_runs_and_prints_json_summary(
     # and manifest (both keyed by the same runts).
     assert Path(summary["manifest"]).stem == summary["runts"]
     assert (tmp_path / "nb-firewx" / "logs" / f"{summary['runts']}.log").exists()
+    # The summary carries an aggregate coverage figure (empty day: zeroes) and
+    # never a day-level completeness verdict.
+    assert summary["coverage"] == {"station_days": 0, "hours": 0, "possible": 0}
 
 
 def test_main_errors_without_required_args() -> None:

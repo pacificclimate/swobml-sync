@@ -19,11 +19,11 @@ memory).
 **Blocked by:** 03 — Rolling window & date semantics; 06 — Persistent file
 logging.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Per-station hour coverage (`n/24`) is reported per processed day in the log
-- [ ] An aggregate coverage figure appears in the stdout JSON summary; no day-level completeness verdict is emitted
-- [ ] Sync-state entries for days older than `--retention-days` are purged at end of run
-- [ ] Manifest and log files older than the retention horizon are purged
-- [ ] Purge is by calendar day relative to run date and independent of `--days-back`
-- [ ] Tests cover coverage counting and purge of state, manifests, and logs past the horizon
+- [x] Per-station hour coverage (`n/24`) is reported per processed day in the log
+- [x] An aggregate coverage figure appears in the stdout JSON summary; no day-level completeness verdict is emitted
+- [x] Sync-state entries for days older than `--retention-days` are purged at end of run
+- [x] Manifest and log files older than the retention horizon are purged
+- [x] Purge is by calendar day relative to run date and independent of `--days-back`
+- [x] Tests cover coverage counting and purge of state, manifests, and logs past the horizon

@@ -23,7 +23,7 @@ lasting consequences see [`docs/adr/`](../../docs/adr/).
 | 04 | [Retry & failure/exit semantics](issues/04-retry-and-failure-exit-semantics.md) | 02 | done |
 | 05 | [Concurrency](issues/05-concurrency.md) | 03, 04 | done |
 | 06 | [Persistent file logging](issues/06-persistent-file-logging.md) | 02 | done |
-| 07 | [End-of-run housekeeping](issues/07-end-of-run-housekeeping.md) | 03, 06 | ready-for-agent |
+| 07 | [End-of-run housekeeping](issues/07-end-of-run-housekeeping.md) | 03, 06 | done |
 | 08 | [Dockerfile](issues/08-dockerfile.md) | 01 | ready-for-agent |
 | 09 | [Dual-registry CI](issues/09-dual-registry-ci.md) | 08 | ready-for-agent |
 

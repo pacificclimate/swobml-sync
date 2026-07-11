@@ -16,8 +16,9 @@ anything that still fails is counted, logged, and skipped so successes are
 persisted and the run exits non-zero (see the CLI) for the caller to retry.
 
 Each run also logs to a per-run file keyed by its ``runts`` (see
-:mod:`swobml_sync.logsetup`). Retention is a later ticket; the network lives
-entirely behind the injected :class:`HttpClient`.
+:mod:`swobml_sync.logsetup`) and, at the end, reports hour coverage and purges
+everything past the retention horizon (see :mod:`swobml_sync.housekeeping`). The
+network lives entirely behind the injected :class:`HttpClient`.
 """
 
 from __future__ import annotations
@@ -28,10 +29,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import partial
 
-from swobml_sync import layout, state as state_mod
+from swobml_sync import housekeeping, layout, state as state_mod
 from swobml_sync.client import HttpClient, NotFound
 from swobml_sync.config import Config
 from swobml_sync.delta import ADDED, Delta, station_deltas
+from swobml_sync.housekeeping import CoverageSummary
 from swobml_sync.listing import directories, files, parse_index
 from swobml_sync.logsetup import run_log_file
 from swobml_sync.manifest import DeltaRecord, write_manifest
@@ -39,8 +41,8 @@ from swobml_sync.state import SyncState
 
 log = logging.getLogger("swobml_sync")
 
-_RUNTS_FORMAT = "%Y%m%dT%H%M%SZ"
-_DAY_FORMAT = "%Y%m%d"
+_RUNTS_FORMAT = layout.RUNTS_FORMAT
+_DAY_FORMAT = layout.DAY_FORMAT
 
 
 @dataclass
@@ -53,6 +55,7 @@ class RunResult:
     changed: int = 0
     failed: int = 0
     days: list[str] = field(default_factory=list)
+    coverage: CoverageSummary = field(default_factory=lambda: CoverageSummary(0, 0, 0))
 
 
 @dataclass(frozen=True)
@@ -123,6 +126,19 @@ def run(config: Config, client: HttpClient, *, now: datetime | None = None) -> R
         state = state_mod.load(layout.state_path(config.directory, config.partner))
         result = RunResult(manifest="", runts=runts, days=days)
         records = _run_phases(config, client, days, state, result)
+
+        # End-of-run housekeeping over the post-download state: report each
+        # station's hour coverage (aggregate into the summary), then purge state
+        # entries and run files past the retention horizon before state is saved,
+        # so the purged days are not re-persisted (ticket 07).
+        result.coverage = housekeeping.report_coverage(state, days)
+        housekeeping.purge(
+            state,
+            config.directory,
+            config.partner,
+            now.astimezone(timezone.utc).date(),
+            config.retention_days,
+        )
 
         state_mod.save(layout.state_path(config.directory, config.partner), state)
 

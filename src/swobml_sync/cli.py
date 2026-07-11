@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from dataclasses import asdict
 from typing import Sequence
 
 from swobml_sync.client import HttpClient, RequestsClient
@@ -39,6 +40,7 @@ def main(argv: Sequence[str] | None = None, client: HttpClient | None = None) ->
             "changed": result.changed,
             "failed": result.failed,
             "days": result.days,
+            "coverage": asdict(result.coverage),
         },
         sys.stdout,
     )
