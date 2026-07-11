@@ -1,0 +1,59 @@
+name: Docker Publishing
+
+# Mirrors the team convention (pacificclimate/climate-explorer-backend's
+# docker-publish.yml): build on every branch push and on bare semver tags
+# (X.Y.Z), and push the image to both GitHub Container Registry (ghcr.io) and
+# Docker Hub (pcic/swobml-sync) in a single build-push step. Tags are derived
+# once with docker/metadata-action.
+on:
+  push:
+    branches:
+      - "**" # every branch, including slashed names like feature/x
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+  packages: write # required to push to ghcr.io with the built-in GITHUB_TOKEN
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Derive image tags
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: |
+            pcic/swobml-sync
+            ghcr.io/${{ github.repository_owner }}/swobml-sync
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            # `latest` only on the repo's default branch, whatever it is named.
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          username: ${{ secrets.pcicdevops_at_dockerhub_username }}
+          password: ${{ secrets.pcicdevops_at_dockerhub_password }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish to both registries
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        with:
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

@@ -11,10 +11,10 @@ in one `docker/build-push-action` step, and tag `:latest` on the default branch.
 
 **Blocked by:** 08 — Dockerfile.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Workflow logs into both ghcr (via `GITHUB_TOKEN`) and Docker Hub (via secrets) and pushes to both
-- [ ] Docker Hub images publish under `pcic/swobml-sync`
-- [ ] Triggers on branch pushes (image tag = branch name) and bare semver tags `X.Y.Z`
-- [ ] `:latest` is applied only on the default branch (`main`)
-- [ ] Tags are derived with `docker/metadata-action` and pushed via a single `docker/build-push-action` step
+- [x] Workflow logs into both ghcr (via `GITHUB_TOKEN`) and Docker Hub (via secrets) and pushes to both
+- [x] Docker Hub images publish under `pcic/swobml-sync`
+- [x] Triggers on branch pushes (image tag = branch name) and bare semver tags `X.Y.Z`
+- [x] `:latest` is applied only on the default branch (via metadata-action `is_default_branch`)
+- [x] Tags are derived with `docker/metadata-action` and pushed via a single `docker/build-push-action` step

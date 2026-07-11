@@ -25,7 +25,7 @@ lasting consequences see [`docs/adr/`](../../docs/adr/).
 | 06 | [Persistent file logging](issues/06-persistent-file-logging.md) | 02 | done |
 | 07 | [End-of-run housekeeping](issues/07-end-of-run-housekeeping.md) | 03, 06 | done |
 | 08 | [Dockerfile](issues/08-dockerfile.md) | 01 | done |
-| 09 | [Dual-registry CI](issues/09-dual-registry-ci.md) | 08 | ready-for-agent |
+| 09 | [Dual-registry CI](issues/09-dual-registry-ci.md) | 08 | done |
 
 ```
 01 ─┬─ 02 ─┬─ 03 ─┬─ 05
@@ -35,6 +35,6 @@ lasting consequences see [`docs/adr/`](../../docs/adr/).
     └─ 08 ── 09
 ```
 
-**Frontier:** 01–08 are done; 09 (dual-registry CI) is startable now.
+**Frontier:** all tickets (01–09) are done.
 
 Work one ticket at a time with `/implement`, clearing context between tickets.
