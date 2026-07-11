@@ -48,3 +48,8 @@ def state_path(directory: Path, partner: str) -> Path:
 def default_manifest_path(directory: Path, partner: str, runts: str) -> Path:
     """The default manifest location for a run, keyed by its ``runts``."""
     return directory / partner / "manifests" / f"{runts}.jsonl"
+
+
+def log_path(directory: Path, partner: str, runts: str) -> Path:
+    """The per-run log file, keyed by the same ``runts`` as its manifest."""
+    return directory / partner / "logs" / f"{runts}.log"

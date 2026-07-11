@@ -35,6 +35,10 @@ def test_main_runs_and_prints_json_summary(
     assert summary["days"] == ["20260710"]
     assert summary["added"] == 0
     assert Path(summary["manifest"]).exists()
+    # The summary carries the run's correlation key, tying it to that run's log
+    # and manifest (both keyed by the same runts).
+    assert Path(summary["manifest"]).stem == summary["runts"]
+    assert (tmp_path / "nb-firewx" / "logs" / f"{summary['runts']}.log").exists()
 
 
 def test_main_errors_without_required_args() -> None:

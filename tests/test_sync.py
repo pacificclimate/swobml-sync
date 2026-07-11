@@ -275,6 +275,31 @@ def test_date_overrides_days_back(tmp_path: Path) -> None:
     assert result.days == [DAY]
 
 
+def test_run_writes_log_file_sharing_manifest_key(tmp_path: Path) -> None:
+    result = run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)
+
+    log_file = layout.log_path(tmp_path, PARTNER, result.runts)
+    # The log lives under the partner's logs dir, keyed by the run's runts, and
+    # shares that one correlation key with the run's manifest.
+    assert log_file.exists()
+    assert log_file.stem == Path(result.manifest).stem == result.runts
+    # At the default INFO level the run's records land in the file.
+    assert "complete" in log_file.read_text()
+
+
+def test_log_file_honours_log_level(tmp_path: Path) -> None:
+    # At WARNING a clean run emits no records, so the file exists but is empty —
+    # the same level that gates the stderr stream gates the file.
+    config = resolve_config(
+        [PARTNER, str(tmp_path), "--date", DAY, "--log-level", "WARNING"], env={}
+    )
+    result = run(config, FakeClient(_pages(), _bodies()), now=NOW)
+
+    log_file = layout.log_path(tmp_path, PARTNER, result.runts)
+    assert log_file.exists()
+    assert log_file.read_text() == ""
+
+
 def test_untouched_days_are_not_clobbered(tmp_path: Path) -> None:
     # A day recorded by an earlier backfill run, outside this run's window.
     old_day = "20260101"

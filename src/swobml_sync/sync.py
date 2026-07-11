@@ -15,8 +15,9 @@ or station (``404``/:class:`NotFound`) is an empty listing, not a failure; and
 anything that still fails is counted, logged, and skipped so successes are
 persisted and the run exits non-zero (see the CLI) for the caller to retry.
 
-Retention and file logging are later tickets; the network lives entirely behind
-the injected :class:`HttpClient`.
+Each run also logs to a per-run file keyed by its ``runts`` (see
+:mod:`swobml_sync.logsetup`). Retention is a later ticket; the network lives
+entirely behind the injected :class:`HttpClient`.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ from swobml_sync.client import HttpClient, NotFound
 from swobml_sync.config import Config
 from swobml_sync.delta import ADDED, Delta, station_deltas
 from swobml_sync.listing import directories, files, parse_index
+from swobml_sync.logsetup import run_log_file
 from swobml_sync.manifest import DeltaRecord, write_manifest
 from swobml_sync.state import SyncState
 
@@ -46,6 +48,7 @@ class RunResult:
     """The outcome of a run, mirrored by the stdout summary."""
 
     manifest: str
+    runts: str = ""
     added: int = 0
     changed: int = 0
     failed: int = 0
@@ -107,30 +110,35 @@ def run(config: Config, client: HttpClient, *, now: datetime | None = None) -> R
     """Sync ``config``'s days for its partner, returning what changed."""
     now = now or datetime.now(timezone.utc)
     runts = now.strftime(_RUNTS_FORMAT)
-    # Explicit --date days replace the window; otherwise the rolling lookback of
-    # today…today-N. Only these days are listed, delta'd, and merged into state,
-    # so untouched days recorded by earlier runs are never re-listed or rewritten.
-    days = list(config.days) or window_days(now, config.days_back)
+    # The whole run logs to a file keyed by runts alongside its manifest, so the
+    # log, manifest, and stdout summary all share one correlation key (ticket 06).
+    with run_log_file(
+        log, layout.log_path(config.directory, config.partner, runts), config.log_level
+    ):
+        # Explicit --date days replace the window; otherwise the rolling lookback of
+        # today…today-N. Only these days are listed, delta'd, and merged into state,
+        # so untouched days recorded by earlier runs are never re-listed or rewritten.
+        days = list(config.days) or window_days(now, config.days_back)
 
-    state = state_mod.load(layout.state_path(config.directory, config.partner))
-    result = RunResult(manifest="", days=days)
-    records = _run_phases(config, client, days, state, result)
+        state = state_mod.load(layout.state_path(config.directory, config.partner))
+        result = RunResult(manifest="", runts=runts, days=days)
+        records = _run_phases(config, client, days, state, result)
 
-    state_mod.save(layout.state_path(config.directory, config.partner), state)
+        state_mod.save(layout.state_path(config.directory, config.partner), state)
 
-    manifest_path = config.manifest or layout.default_manifest_path(
-        config.directory, config.partner, runts
-    )
-    write_manifest(manifest_path, records)
-    result.manifest = str(manifest_path)
-    log.info(
-        "run %s complete: added=%d changed=%d failed=%d days=%s",
-        runts,
-        result.added,
-        result.changed,
-        result.failed,
-        ",".join(days),
-    )
+        manifest_path = config.manifest or layout.default_manifest_path(
+            config.directory, config.partner, runts
+        )
+        write_manifest(manifest_path, records)
+        result.manifest = str(manifest_path)
+        log.info(
+            "run %s complete: added=%d changed=%d failed=%d days=%s",
+            runts,
+            result.added,
+            result.changed,
+            result.failed,
+            ",".join(days),
+        )
     return result
 
 

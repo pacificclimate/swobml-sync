@@ -13,6 +13,7 @@ from typing import Sequence
 
 from swobml_sync.client import HttpClient, RequestsClient
 from swobml_sync.config import resolve_config
+from swobml_sync.logsetup import LOG_FORMAT
 from swobml_sync.sync import run
 
 
@@ -22,7 +23,7 @@ def main(argv: Sequence[str] | None = None, client: HttpClient | None = None) ->
     logging.basicConfig(
         level=config.log_level,
         stream=sys.stderr,
-        format="%(asctime)s %(levelname)s %(message)s",
+        format=LOG_FORMAT,
     )
     # Size the real client's connection pool to the worker count so concurrent
     # discovery and downloads reuse one connection per worker (see ticket 05).
@@ -32,6 +33,7 @@ def main(argv: Sequence[str] | None = None, client: HttpClient | None = None) ->
     )
     json.dump(
         {
+            "runts": result.runts,
             "manifest": result.manifest,
             "added": result.added,
             "changed": result.changed,
