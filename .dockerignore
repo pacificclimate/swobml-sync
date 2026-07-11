@@ -1,0 +1,23 @@
+# Keep the build context small and reproducible: send only what the image build
+# needs (pyproject.toml, README.md, src/). Everything below is either local dev
+# cruft or regenerated at install time.
+.git
+.gitignore
+.venv
+.mypy_cache
+.pytest_cache
+**/__pycache__
+*.py[codz]
+build/
+dist/
+*.egg-info
+
+# Repo docs and trackers that never belong in the image.
+.scratch
+docs
+notes.md
+CLAUDE.md
+CONTEXT.md
+tests
+Dockerfile
+.dockerignore
