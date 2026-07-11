@@ -8,9 +8,9 @@ dependencies ship manylinux wheels, so no build toolchain is needed.
 
 **Blocked by:** 01 — Scaffold & CLI surface.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Image builds from `python:3.12-slim` and installs the package with runtime deps
-- [ ] Entry point invokes `swobml-sync`; args pass straight through to the CLI
-- [ ] `docker run` with valid args behaves identically to the local CLI (verified with a mocked or real single-day run)
-- [ ] Image contains no build toolchain beyond what the slim base provides
+- [x] Image builds from `python:3.12-slim` and installs the package with runtime deps
+- [x] Entry point invokes `swobml-sync`; args pass straight through to the CLI
+- [x] `docker run` with valid args behaves identically to the local CLI (verified with a mocked or real single-day run)
+- [x] Image contains no build toolchain beyond what the slim base provides
