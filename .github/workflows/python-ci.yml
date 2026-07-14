@@ -1,0 +1,51 @@
+name: Python CI
+
+on: push
+
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.python-version }}
+      cancel-in-progress: true
+    strategy:
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -yq libxml2-dev libxslt-dev libffi-dev
+
+      - name: Install poetry
+        run: |
+          pipx install "poetry==2.4.0"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install python dependencies
+        run: |
+          poetry install --extras dev
+
+      - name: Test with pytest (full)
+        if: github.ref == 'refs/heads/master'
+        run: |
+          poetry run py.test -m "not online" -v
+
+      - name: Test with pytest (fast)
+        if: github.ref != 'refs/heads/master'
+        run: |
+          poetry run py.test -m "not online and not slow" -v

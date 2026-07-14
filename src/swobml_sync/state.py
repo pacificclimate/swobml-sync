@@ -43,4 +43,7 @@ def record(
     size: str,
 ) -> None:
     """Record a successfully downloaded file's change key into ``state``."""
-    state.setdefault(day, {}).setdefault(station, {})[file] = {"mtime": mtime, "size": size}
+    state.setdefault(day, {}).setdefault(station, {})[file] = {
+        "mtime": mtime,
+        "size": size,
+    }

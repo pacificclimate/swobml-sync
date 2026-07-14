@@ -50,7 +50,9 @@ def _is_valid_day(value: str) -> bool:
 def _valid_day(value: str) -> str:
     """argparse ``type`` for a ``YYYYMMDD`` day; returns it unchanged."""
     if not _is_valid_day(value):
-        raise argparse.ArgumentTypeError(f"invalid --date value {value!r}, expected YYYYMMDD")
+        raise argparse.ArgumentTypeError(
+            f"invalid --date value {value!r}, expected YYYYMMDD"
+        )
     return value
 
 
@@ -150,7 +152,9 @@ def _resolve_int(
     return value
 
 
-def _resolve_str(cli_value: str | None, env: Mapping[str, str], env_key: str) -> str | None:
+def _resolve_str(
+    cli_value: str | None, env: Mapping[str, str], env_key: str
+) -> str | None:
     """CLI value, else the environment value; ``None`` if neither is set."""
     return cli_value if cli_value is not None else env.get(env_key)
 
@@ -169,7 +173,9 @@ def _resolve_days(
     days: list[str] = []
     for token in raw.replace(",", " ").split():
         if not _is_valid_day(token):
-            parser.error(f"SWOBML_DATE contains an invalid day {token!r} (expected YYYYMMDD)")
+            parser.error(
+                f"SWOBML_DATE contains an invalid day {token!r} (expected YYYYMMDD)"
+            )
         days.append(token)
     return tuple(days)
 
@@ -197,7 +203,13 @@ def resolve_config(
         parser.error("dir is required (positional argument or SWOBML_DIR)")
 
     days_back = _resolve_int(
-        parser, ns.days_back, env, "SWOBML_DAYS_BACK", DEFAULT_DAYS_BACK, "--days-back", minimum=0
+        parser,
+        ns.days_back,
+        env,
+        "SWOBML_DAYS_BACK",
+        DEFAULT_DAYS_BACK,
+        "--days-back",
+        minimum=0,
     )
     retention_days = _resolve_int(
         parser,
@@ -209,7 +221,13 @@ def resolve_config(
         minimum=1,
     )
     workers = _resolve_int(
-        parser, ns.workers, env, "SWOBML_WORKERS", DEFAULT_WORKERS, "--workers", minimum=1
+        parser,
+        ns.workers,
+        env,
+        "SWOBML_WORKERS",
+        DEFAULT_WORKERS,
+        "--workers",
+        minimum=1,
     )
 
     days = _resolve_days(parser, ns.date, env)
@@ -220,7 +238,9 @@ def resolve_config(
     log_level_raw = _resolve_str(ns.log_level, env, "SWOBML_LOG_LEVEL")
     log_level = (log_level_raw or DEFAULT_LOG_LEVEL).upper()
     if log_level not in LOG_LEVELS:
-        parser.error(f"--log-level must be one of {', '.join(LOG_LEVELS)} (got {log_level!r})")
+        parser.error(
+            f"--log-level must be one of {', '.join(LOG_LEVELS)} (got {log_level!r})"
+        )
 
     return Config(
         partner=partner,

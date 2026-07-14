@@ -56,7 +56,9 @@ def test_aggregate_sums_hours_over_station_days() -> None:
     coverages = housekeeping.day_coverages(_state(), ["20260710", "20260709"])
     summary = housekeeping.aggregate(coverages)
     # Three station-days: eutk(24) + kenn(2) on the 10th, kenn(3) on the 9th.
-    assert summary == housekeeping.CoverageSummary(station_days=3, hours=29, possible=72)
+    assert summary == housekeeping.CoverageSummary(
+        station_days=3, hours=29, possible=72
+    )
 
 
 def test_aggregate_of_nothing_is_zero() -> None:
@@ -111,7 +113,9 @@ def test_purge_run_files_deletes_old_manifests_and_logs(tmp_path: Path) -> None:
     _touch(logs / f"{old}.log")
     _touch(logs / f"{recent}.log")
 
-    removed = housekeeping.purge_run_files(tmp_path, partner, RUN_DATE, retention_days=65)
+    removed = housekeeping.purge_run_files(
+        tmp_path, partner, RUN_DATE, retention_days=65
+    )
 
     assert {p.name for p in removed} == {f"{old}.jsonl", f"{old}.log"}
     assert not (manifests / f"{old}.jsonl").exists()
@@ -126,7 +130,9 @@ def test_purge_run_files_ignores_foreign_names(tmp_path: Path) -> None:
     _touch(logs / "README.txt")
     _touch(logs / "20260101T000000Z.log")
 
-    removed = housekeeping.purge_run_files(tmp_path, partner, RUN_DATE, retention_days=65)
+    removed = housekeeping.purge_run_files(
+        tmp_path, partner, RUN_DATE, retention_days=65
+    )
 
     assert {p.name for p in removed} == {"20260101T000000Z.log"}
     assert (logs / "README.txt").exists()

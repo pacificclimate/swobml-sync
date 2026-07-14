@@ -42,7 +42,9 @@ def relative_file_path(partner: str, day: str, station: str, file: str) -> str:
     return f"{partner}/cache/{day}/{station}/{file}"
 
 
-def local_file_path(directory: Path, partner: str, day: str, station: str, file: str) -> Path:
+def local_file_path(
+    directory: Path, partner: str, day: str, station: str, file: str
+) -> Path:
     """The absolute local path a SWOB file downloads to."""
     return directory / relative_file_path(partner, day, station, file)
 

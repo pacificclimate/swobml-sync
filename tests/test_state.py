@@ -13,7 +13,9 @@ def test_load_missing_file_is_empty(tmp_path: Path) -> None:
 
 def test_save_then_load_round_trips(tmp_path: Path) -> None:
     path = tmp_path / "part" / ".sync-state.json"
-    data = {"20260710": {"kenn": {"a.xml": {"mtime": "2026-07-10 01:50", "size": "3.3K"}}}}
+    data = {
+        "20260710": {"kenn": {"a.xml": {"mtime": "2026-07-10 01:50", "size": "3.3K"}}}
+    }
     state.save(path, data)
     assert state.load(path) == data
 

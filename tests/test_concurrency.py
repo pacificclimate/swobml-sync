@@ -40,15 +40,21 @@ def _index(rows: list[tuple[str, bool]]) -> str:
     return f"<html><body><h1>Index</h1><pre>{body}<hr></pre></body></html>"
 
 
-def _source(stations: list[str], files_per_station: int) -> tuple[dict[str, str], dict[str, bytes]]:
+def _source(
+    stations: list[str], files_per_station: int
+) -> tuple[dict[str, str], dict[str, bytes]]:
     """Fixture pages and bodies for one day of ``stations`` each with N files."""
     pages = {layout.day_url(PARTNER, DAY): _index([(s, True) for s in stations])}
     bodies: dict[str, bytes] = {}
     for station in stations:
         names = [f"{DAY}-{station}-{h:02d}.xml" for h in range(files_per_station)]
-        pages[layout.station_url(PARTNER, DAY, station)] = _index([(n, False) for n in names])
+        pages[layout.station_url(PARTNER, DAY, station)] = _index(
+            [(n, False) for n in names]
+        )
         for name in names:
-            bodies[layout.file_url(PARTNER, DAY, station, name)] = f"<swob>{name}</swob>".encode()
+            bodies[layout.file_url(PARTNER, DAY, station, name)] = (
+                f"<swob>{name}</swob>".encode()
+            )
     return pages, bodies
 
 

@@ -28,7 +28,9 @@ def test_file_url_extends_the_station_url() -> None:
 
 
 def test_local_file_path_under_partner_cache() -> None:
-    p = layout.local_file_path(Path("/data"), "nb-firewx", "20260710", "anfi", "a-swob.xml")
+    p = layout.local_file_path(
+        Path("/data"), "nb-firewx", "20260710", "anfi", "a-swob.xml"
+    )
     assert p == Path("/data/nb-firewx/cache/20260710/anfi/a-swob.xml")
 
 
@@ -44,6 +46,6 @@ def test_state_path_is_hidden_per_partner_file() -> None:
 
 
 def test_default_manifest_path_uses_runts() -> None:
-    assert layout.default_manifest_path(Path("/data"), "nb-firewx", "20260710T142530Z") == Path(
-        "/data/nb-firewx/manifests/20260710T142530Z.jsonl"
-    )
+    assert layout.default_manifest_path(
+        Path("/data"), "nb-firewx", "20260710T142530Z"
+    ) == Path("/data/nb-firewx/manifests/20260710T142530Z.jsonl")

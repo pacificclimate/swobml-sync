@@ -106,10 +106,14 @@ def window_days(now: datetime, days_back: int) -> list[str]:
     ``days_back`` days, newest first, all in UTC to match the source tree's
     date partitioning."""
     today = now.astimezone(timezone.utc).date()
-    return [(today - timedelta(days=n)).strftime(_DAY_FORMAT) for n in range(days_back + 1)]
+    return [
+        (today - timedelta(days=n)).strftime(_DAY_FORMAT) for n in range(days_back + 1)
+    ]
 
 
-def run(config: Config, client: HttpClient, *, now: datetime | None = None) -> RunResult:
+def run(
+    config: Config, client: HttpClient, *, now: datetime | None = None
+) -> RunResult:
     """Sync ``config``'s days for its partner, returning what changed."""
     now = now or datetime.now(timezone.utc)
     runts = now.strftime(_RUNTS_FORMAT)
@@ -257,7 +261,9 @@ def _download(
     day, station, delta = pending
     entry = delta.entry
     url = layout.file_url(config.partner, day, station, entry.name)
-    dest = layout.local_file_path(config.directory, config.partner, day, station, entry.name)
+    dest = layout.local_file_path(
+        config.directory, config.partner, day, station, entry.name
+    )
     try:
         client.download(url, dest)
     except Exception as exc:  # noqa: BLE001 — one bad file must not fail the run
@@ -289,7 +295,9 @@ def _record_downloads(
         state_mod.record(state, dl.day, dl.station, entry.name, mtime, size)
         records.append(
             DeltaRecord(
-                path=layout.relative_file_path(config.partner, dl.day, dl.station, entry.name),
+                path=layout.relative_file_path(
+                    config.partner, dl.day, dl.station, entry.name
+                ),
                 action=dl.delta.action,
                 station=dl.station,
                 day=dl.day,

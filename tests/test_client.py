@@ -101,6 +101,8 @@ def test_download_failure_after_retries_leaves_no_file(tmp_path: Path) -> None:
     with _serving({"/f.xml": [503]}) as base:
         client = RequestsClient(retries=2, backoff=NO_BACKOFF)
         dest = tmp_path / "f.xml"
-        with pytest.raises(Exception):  # noqa: PT011 - transient give-up surfaces as an error
+        with pytest.raises(
+            Exception
+        ):  # noqa: PT011 - transient give-up surfaces as an error
             client.download(f"{base}/f.xml", dest)
         assert not dest.exists()

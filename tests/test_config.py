@@ -52,7 +52,11 @@ def test_cli_overrides_env_for_positionals_and_flags() -> None:
 def test_env_flag_fallback() -> None:
     c = cfg(
         ["p", "/d"],
-        env={"SWOBML_WORKERS": "16", "SWOBML_RETENTION_DAYS": "30", "SWOBML_LOG_LEVEL": "debug"},
+        env={
+            "SWOBML_WORKERS": "16",
+            "SWOBML_RETENTION_DAYS": "30",
+            "SWOBML_LOG_LEVEL": "debug",
+        },
     )
     assert c.workers == 16
     assert c.retention_days == 30

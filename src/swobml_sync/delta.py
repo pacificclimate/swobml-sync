@@ -33,6 +33,9 @@ def station_deltas(entries: list[Entry], known: StationState) -> list[Delta]:
         record = known.get(entry.name)
         if record is None:
             deltas.append(Delta(entry=entry, action=ADDED))
-        elif record.get("mtime") != entry.last_modified or record.get("size") != entry.size:
+        elif (
+            record.get("mtime") != entry.last_modified
+            or record.get("size") != entry.size
+        ):
             deltas.append(Delta(entry=entry, action=CHANGED))
     return deltas

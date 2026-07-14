@@ -88,7 +88,9 @@ def report_coverage(state: SyncState, days: list[str]) -> CoverageSummary:
     """Log each station's ``n/24`` coverage and return the run's aggregate."""
     coverages = day_coverages(state, days)
     for cov in coverages:
-        log.info("coverage %s/%s: %d/%d", cov.day, cov.station, cov.hours, HOURS_PER_DAY)
+        log.info(
+            "coverage %s/%s: %d/%d", cov.day, cov.station, cov.hours, HOURS_PER_DAY
+        )
     return aggregate(coverages)
 
 

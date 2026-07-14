@@ -1,0 +1,50 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options,
+// see https://containers.dev/implementors/json_reference/
+{
+  "name": "swobml-sync (Python 3.12 & uv)",
+  // A prebuilt base image plus features; there is no project-specific system
+  // setup to justify a custom Dockerfile here. The runtime image that actually
+  // ships is the one at the repo root, which is deliberately unrelated to this.
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    // 3.14 is the project's floor (requires-python) and the version mypy is
+    // configured against, so develop on it rather than something newer.
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.14"
+    },
+    "ghcr.io/va-h/devcontainers-features/uv:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "remote.autoForwardPorts": false,
+        // The venv that post-install.sh builds with uv.
+        "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+        "python.testing.pytestEnabled": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        // The project's actual toolchain, per pyproject's dev extra.
+        "ms-python.black-formatter",
+        "ms-python.mypy-type-checker"
+      ]
+    }
+  },
+  "postCreateCommand": "bash ./.devcontainer/post-install.sh",
+  "postStartCommand": "bash ./.devcontainer/post-start.sh",
+  "remoteUser": "vscode",
+  "runArgs": [
+    // allow container to be treated with no network isolation
+    "--network=host",
+    // give a nicer name to the container
+    "--name",
+    "swobml_sync_${localEnv:USER}"
+  ],
+  "mounts": [
+    // localEnv:HOME, not "~" — nothing expands a tilde on this path.
+    "source=${localEnv:HOME}/scratch,target=/data,type=bind,consistency=cached"
+  ]
+}

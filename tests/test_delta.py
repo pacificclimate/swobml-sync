@@ -42,6 +42,9 @@ def test_mixed_batch_partitions_correctly() -> None:
         _file("b.xml", "m2-new", "1K"),  # changed
         _file("c.xml", "m3", "1K"),  # added
     ]
-    known = {"a.xml": {"mtime": "m1", "size": "1K"}, "b.xml": {"mtime": "m2", "size": "1K"}}
+    known = {
+        "a.xml": {"mtime": "m1", "size": "1K"},
+        "b.xml": {"mtime": "m2", "size": "1K"},
+    }
     result = {d.entry.name: d.action for d in station_deltas(entries, known=known)}
     assert result == {"b.xml": CHANGED, "c.xml": ADDED}

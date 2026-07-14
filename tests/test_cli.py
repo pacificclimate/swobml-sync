@@ -65,7 +65,10 @@ class _OneFailingFileClient:
 def test_main_exits_nonzero_when_a_file_fails(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    rc = main(["nb-firewx", str(tmp_path), "--date", "20260710"], client=_OneFailingFileClient())
+    rc = main(
+        ["nb-firewx", str(tmp_path), "--date", "20260710"],
+        client=_OneFailingFileClient(),
+    )
     assert rc == 1
     summary = json.loads(capsys.readouterr().out)
     assert summary["failed"] == 1

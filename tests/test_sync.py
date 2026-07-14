@@ -100,7 +100,9 @@ def _bodies_for_days(days: list[str]) -> dict[str, bytes]:
     for day in days:
         for station, names in FILES.items():
             for name in names:
-                bodies[layout.file_url(PARTNER, day, station, name)] = f"<swob>{name}</swob>".encode()
+                bodies[layout.file_url(PARTNER, day, station, name)] = (
+                    f"<swob>{name}</swob>".encode()
+                )
     return bodies
 
 
@@ -119,7 +121,10 @@ def test_state_records_only_downloaded_files(tmp_path: Path) -> None:
     run(_config(tmp_path), FakeClient(_pages(), _bodies()))
     saved = state.load(layout.state_path(tmp_path, PARTNER))
     assert set(saved[DAY]["kenn"]) == set(FILES["kenn"])
-    assert saved[DAY]["kenn"][FILES["kenn"][0]] == {"mtime": "2026-07-10 01:50", "size": "3.3K"}
+    assert saved[DAY]["kenn"][FILES["kenn"][0]] == {
+        "mtime": "2026-07-10 01:50",
+        "size": "3.3K",
+    }
 
 
 def test_manifest_lists_every_delta(tmp_path: Path) -> None:
@@ -145,9 +150,9 @@ def test_changed_upstream_file_is_redownloaded(tmp_path: Path) -> None:
     run(_config(tmp_path), FakeClient(_pages(), _bodies()))
     # kenn's second file gets a newer last-modified upstream.
     changed_pages = _pages("sync_day.html")
-    changed_pages[layout.station_url(PARTNER, DAY, "kenn")] = _read("sync_kenn.html").replace(
-        "2026-07-10 02:49", "2026-07-10 09:15"
-    )
+    changed_pages[layout.station_url(PARTNER, DAY, "kenn")] = _read(
+        "sync_kenn.html"
+    ).replace("2026-07-10 02:49", "2026-07-10 09:15")
     result = run(_config(tmp_path), FakeClient(changed_pages, _bodies()))
     assert (result.added, result.changed, result.failed) == (0, 1, 0)
     rec = json.loads(Path(result.manifest).read_text().splitlines()[0])
@@ -167,7 +172,8 @@ def test_failed_download_is_not_recorded(tmp_path: Path) -> None:
     assert "eutk" not in saved.get(DAY, {})
     # The failed file is left out of the manifest too, not just sync state.
     manifest_stations = {
-        json.loads(line)["station"] for line in Path(result.manifest).read_text().splitlines()
+        json.loads(line)["station"]
+        for line in Path(result.manifest).read_text().splitlines()
     }
     assert "eutk" not in manifest_stations
     # A re-run retries the previously-failed file.
@@ -238,7 +244,9 @@ def test_permanent_listing_failure_is_counted_and_run_continues(tmp_path: Path) 
     client = FakeClient(
         _pages(),
         _bodies(),
-        text_errors={layout.station_url(PARTNER, DAY, "eutk"): RuntimeError("503 exhausted")},
+        text_errors={
+            layout.station_url(PARTNER, DAY, "eutk"): RuntimeError("503 exhausted")
+        },
     )
     result = run(_config(tmp_path), client)
 
@@ -304,7 +312,9 @@ def test_untouched_days_are_not_clobbered(tmp_path: Path) -> None:
     # A day recorded by an earlier backfill run, outside this run's window but
     # still within the retention horizon so end-of-run purge leaves it alone.
     old_day = "20260601"
-    seeded = {old_day: {"anfi": {"old.xml": {"mtime": "2026-06-01 00:00", "size": "1K"}}}}
+    seeded = {
+        old_day: {"anfi": {"old.xml": {"mtime": "2026-06-01 00:00", "size": "1K"}}}
+    }
     state.save(layout.state_path(tmp_path, PARTNER), seeded)
 
     run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)
@@ -344,7 +354,9 @@ def test_run_purges_state_and_files_past_retention(tmp_path: Path) -> None:
             parents=True, exist_ok=True
         )
         layout.default_manifest_path(tmp_path, PARTNER, runts).write_text("{}\n")
-        layout.log_path(tmp_path, PARTNER, runts).parent.mkdir(parents=True, exist_ok=True)
+        layout.log_path(tmp_path, PARTNER, runts).parent.mkdir(
+            parents=True, exist_ok=True
+        )
         layout.log_path(tmp_path, PARTNER, runts).write_text("x")
 
     result = run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)

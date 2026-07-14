@@ -89,7 +89,9 @@ class RequestsClient:
         pool_size: int = 1,
     ) -> None:
         self._session = (
-            session if session is not None else _retrying_session(retries, backoff, pool_size)
+            session
+            if session is not None
+            else _retrying_session(retries, backoff, pool_size)
         )
         self._timeout = timeout
 
