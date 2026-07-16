@@ -9,6 +9,11 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+# jq lets callers pipe/inspect the tool's JSON summary output without a
+# Python one-liner; apt lists are dropped in the same layer to stay slim.
+RUN apt-get update && apt-get install -y --no-install-recommends jq \
+    && rm -rf /var/lib/apt/lists/*
+
 # Only the files needed to build and install the package; the build context is
 # trimmed further by .dockerignore. README.md is required — pyproject names it
 # as the project readme.
