@@ -26,15 +26,20 @@ lasting consequences see [`docs/adr/`](../../docs/adr/).
 | 07 | [End-of-run housekeeping](issues/07-end-of-run-housekeeping.md) | 03, 06 | done |
 | 08 | [Dockerfile](issues/08-dockerfile.md) | 01 | done |
 | 09 | [Dual-registry CI](issues/09-dual-registry-ci.md) | 08 | done |
+| 10 | [Moveable `--as-of` anchor](issues/10-as-of-anchor.md) | 03 | todo |
+| 11 | [Availability discovery, gate & dynamic retention](issues/11-availability-discovery-and-gating.md) | 10, 07 | todo |
 
 ```
 01 ─┬─ 02 ─┬─ 03 ─┬─ 05
     │      ├─ 04 ─┘
-    │      └─ 06 ── 07
-    │         03 ─┘
+    │      ├─ 06 ── 07 ─── 11
+    │      │    03 ─┘      10 ─┘
+    │      └─ 03 ── 10
     └─ 08 ── 09
 ```
 
-**Frontier:** all tickets (01–09) are done.
+**Frontier:** 10 (moveable `--as-of` anchor) is ready — it is blocked only by
+03, which is done. 11 (availability discovery, input gate & dynamic retention)
+unlocks once 10 lands.
 
 Work one ticket at a time with `/implement`, clearing context between tickets.

@@ -33,6 +33,11 @@
       ]
     }
   },
+  // Bind mounts below error out if their host source is missing (unlike the
+  // old -v syntax, --mount does not auto-create it), so make sure these paths
+  // exist before the container is created. Harmless no-ops for non-Claude-Code
+  // users: they just get an empty dir/file mounted in.
+  "initializeCommand": "mkdir -p ${localEnv:HOME}/.claude && touch ${localEnv:HOME}/.claude.json",
   "postCreateCommand": "bash ./.devcontainer/post-install.sh",
   "postStartCommand": "bash ./.devcontainer/post-start.sh",
   "remoteUser": "vscode",
@@ -45,6 +50,10 @@
   ],
   "mounts": [
     // localEnv:HOME, not "~" — nothing expands a tilde on this path.
-    "source=${localEnv:HOME}/scratch,target=/data,type=bind,consistency=cached"
+    "source=${localEnv:HOME}/scratch,target=/data,type=bind,consistency=cached",
+    // Claude Code's config/history directory and settings file, so they persist
+    // into the container instead of starting fresh each time.
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind,consistency=cached"
   ]
 }
