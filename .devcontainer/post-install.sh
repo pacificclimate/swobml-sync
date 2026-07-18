@@ -17,7 +17,7 @@ echo "export UV_CACHE_DIR=${UV_CACHE_DIR}" >> $HOME/.bashrc
 
 # Now install all dependencies. These two commands are the documented dev setup
 # in README.md -- keep them in step with it.
-uv venv --python 3.12 .venv
+uv venv --python 3.14 .venv
 uv pip install --python .venv/bin/python -e ".[dev]"
 
 # Drop straight into the venv on every new shell.

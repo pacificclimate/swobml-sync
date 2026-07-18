@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options,
 // see https://containers.dev/implementors/json_reference/
 {
-  "name": "swobml-sync (Python 3.12 & uv)",
+  "name": "swobml-sync (Python 3.14 & uv)",
   // A prebuilt base image plus features; there is no project-specific system
   // setup to justify a custom Dockerfile here. The runtime image that actually
   // ships is the one at the repo root, which is deliberately unrelated to this.

@@ -48,7 +48,7 @@ unchanged source downloads nothing and writes an empty manifest.
 ## Development
 
 ```
-uv venv --python 3.12 .venv
+uv venv --python 3.14 .venv
 uv pip install --python .venv/bin/python -e ".[dev]"
 .venv/bin/python -m pytest
 .venv/bin/python -m mypy

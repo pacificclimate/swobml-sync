@@ -7,7 +7,7 @@ name = "swobml-sync"
 version = "0.1.0"
 description = "Sync swob-ml partner observation files from the ECCC HPFX server to a local directory tree."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "requests>=2.31",
     "lxml>=5.0",
@@ -28,10 +28,13 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/swobml_sync"]
 
+[tool.black]
+target-version = ["py314"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
 files = ["src", "tests"]
