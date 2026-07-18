@@ -78,6 +78,41 @@ def test_cli_date_overrides_env_date() -> None:
     assert c.days == ("20260101",)
 
 
+def test_as_of_defaults_to_none() -> None:
+    c = cfg(["p", "/d"])
+    assert c.as_of is None
+
+
+def test_as_of_from_cli() -> None:
+    c = cfg(["p", "/d", "--as-of", "20260601"])
+    assert c.as_of == "20260601"
+
+
+def test_as_of_from_env() -> None:
+    c = cfg(["p", "/d"], env={"SWOBML_AS_OF": "20260601"})
+    assert c.as_of == "20260601"
+
+
+def test_cli_as_of_overrides_env() -> None:
+    c = cfg(["p", "/d", "--as-of", "20260601"], env={"SWOBML_AS_OF": "20260101"})
+    assert c.as_of == "20260601"
+
+
+def test_invalid_cli_as_of_errors() -> None:
+    with pytest.raises(SystemExit):
+        cfg(["p", "/d", "--as-of", "2026-06-01"])
+
+
+def test_impossible_cli_as_of_errors() -> None:
+    with pytest.raises(SystemExit):
+        cfg(["p", "/d", "--as-of", "20260231"])  # Feb 31 does not exist
+
+
+def test_invalid_env_as_of_errors() -> None:
+    with pytest.raises(SystemExit):
+        cfg(["p", "/d"], env={"SWOBML_AS_OF": "notadate"})
+
+
 def test_manifest_path_from_cli() -> None:
     c = cfg(["p", "/d", "--manifest", "/tmp/m.jsonl"])
     assert c.manifest == Path("/tmp/m.jsonl")

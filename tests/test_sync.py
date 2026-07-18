@@ -274,6 +274,49 @@ def test_no_date_processes_rolling_window(tmp_path: Path) -> None:
     assert set(saved) == set(days)
 
 
+def test_as_of_anchors_window_on_a_historic_day(tmp_path: Path) -> None:
+    # --as-of moves the newest day of the window; --days-back counts back from it,
+    # so `now` (the 10th) is irrelevant to the data window.
+    anchored = ["20260601", "20260531"]
+    config = resolve_config(
+        [PARTNER, str(tmp_path), "--as-of", "20260601", "--days-back", "1"], env={}
+    )
+    client = FakeClient(_pages_for_days(anchored), _bodies_for_days(anchored))
+
+    result = run(config, client, now=NOW)
+
+    assert result.days == anchored
+    assert (result.added, result.changed, result.failed) == (6, 0, 0)
+
+
+def test_as_of_from_env_anchors_window(tmp_path: Path) -> None:
+    anchored = ["20260601"]
+    config = resolve_config(
+        [PARTNER, str(tmp_path), "--days-back", "0"], env={"SWOBML_AS_OF": "20260601"}
+    )
+    client = FakeClient(_pages_for_days(anchored), _bodies_for_days(anchored))
+
+    result = run(config, client, now=NOW)
+
+    assert result.days == anchored
+
+
+def test_date_and_as_of_ignores_as_of_and_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # --date replaces the window outright, so --as-of is dropped — but loudly,
+    # at WARNING, because it is a specific, intentful request.
+    config = resolve_config(
+        [PARTNER, str(tmp_path), "--date", DAY, "--as-of", "20260601"], env={}
+    )
+    with caplog.at_level("WARNING", logger="swobml_sync"):
+        result = run(config, FakeClient(_pages(), _bodies()), now=NOW)
+
+    assert result.days == [DAY]
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert any("as-of" in r.getMessage().lower() for r in warnings)
+
+
 def test_date_overrides_days_back(tmp_path: Path) -> None:
     # A generous --days-back is ignored entirely when --date is given.
     config = resolve_config(

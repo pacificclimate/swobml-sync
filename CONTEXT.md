@@ -43,8 +43,9 @@ correlation key.
 _Avoid_: execution, job, sync (as a noun)
 
 **Window**:
-The set of days a run processes. By default a rolling lookback of `today …
-today − N` (`--days-back`, UTC). Supplying `--date` replaces the window with
+The set of days a run processes. By default a rolling lookback of `anchor …
+anchor − N` (`--days-back`, UTC), where the anchor — the newest day — is
+`--as-of` when given, else today. Supplying `--date` replaces the window with
 exactly the given days. Days outside the window are never re-listed.
 _Avoid_: range, period, lookback (alone)
 

@@ -20,6 +20,7 @@ swobml-sync <partner> <dir> [options]
 | `dir`               | `SWOBML_DIR`            | —       | Output directory (required).                                  |
 | `--days-back N`     | `SWOBML_DAYS_BACK`      | `2`     | Rolling lookback window: today plus the previous N days (UTC).|
 | `--date YYYYMMDD`   | `SWOBML_DATE`           | —       | Sync exactly these days; replaces the window. Repeatable.     |
+| `--as-of YYYYMMDD`  | `SWOBML_AS_OF`          | today   | Anchor the window's newest day here; `--days-back` counts back from it. Ignored (with a warning) when `--date` is given. |
 | `--retention-days N`| `SWOBML_RETENTION_DAYS` | `65`    | Purge state/manifests/logs older than N days.                 |
 | `--workers N`       | `SWOBML_WORKERS`        | `8`     | Download/discovery thread-pool size.                          |
 | `--manifest PATH`   | `SWOBML_MANIFEST`       | —       | Override the default manifest location.                       |

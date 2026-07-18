@@ -6,7 +6,7 @@ isolation so the integration tests can trust the day set it produces.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from swobml_sync.sync import window_days
 
@@ -34,3 +34,22 @@ def test_window_is_computed_in_utc() -> None:
     # though it is already the 11th in a positive-offset local zone.
     late = datetime(2026, 7, 10, 23, 59, tzinfo=timezone.utc)
     assert window_days(late, 0) == ["20260710"]
+
+
+def test_anchor_replaces_today_as_newest_day() -> None:
+    # With an explicit anchor the window ends on it, counting backward, and
+    # ignores `now`'s date entirely.
+    assert window_days(NOON, 2, anchor=date(2026, 6, 1)) == [
+        "20260601",
+        "20260531",
+        "20260530",
+    ]
+
+
+def test_anchor_with_zero_days_back_is_the_anchor_only() -> None:
+    assert window_days(NOON, 0, anchor=date(2026, 6, 1)) == ["20260601"]
+
+
+def test_absent_anchor_is_unchanged_today_window() -> None:
+    # anchor=None is byte-for-byte the today-anchored window.
+    assert window_days(NOON, 2, anchor=None) == window_days(NOON, 2)

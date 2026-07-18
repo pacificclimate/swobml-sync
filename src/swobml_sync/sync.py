@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import partial
 
 from swobml_sync import housekeeping, layout, state as state_mod
@@ -101,13 +101,18 @@ class _Download:
     failed: bool
 
 
-def window_days(now: datetime, days_back: int) -> list[str]:
-    """The rolling window as ``YYYYMMDD`` strings: today and the previous
-    ``days_back`` days, newest first, all in UTC to match the source tree's
-    date partitioning."""
-    today = now.astimezone(timezone.utc).date()
+def window_days(now: datetime, days_back: int, anchor: date | None = None) -> list[str]:
+    """The rolling window as ``YYYYMMDD`` strings: the newest day and the
+    previous ``days_back`` days, newest first, all in UTC to match the source
+    tree's date partitioning.
+
+    The newest day is ``anchor`` when given (a moveable "today" set by
+    ``--as-of``), else ``now``'s UTC date. ``days_back`` always counts backward
+    from that newest day.
+    """
+    newest = anchor if anchor is not None else now.astimezone(timezone.utc).date()
     return [
-        (today - timedelta(days=n)).strftime(_DAY_FORMAT) for n in range(days_back + 1)
+        (newest - timedelta(days=n)).strftime(_DAY_FORMAT) for n in range(days_back + 1)
     ]
 
 
@@ -123,9 +128,19 @@ def run(
         log, layout.log_path(config.directory, config.partner, runts), config.log_level
     ):
         # Explicit --date days replace the window; otherwise the rolling lookback of
-        # today…today-N. Only these days are listed, delta'd, and merged into state,
-        # so untouched days recorded by earlier runs are never re-listed or rewritten.
-        days = list(config.days) or window_days(now, config.days_back)
+        # anchor…anchor-N, where the anchor is --as-of when given, else today. Only
+        # these days are listed, delta'd, and merged into state, so untouched days
+        # recorded by earlier runs are never re-listed or rewritten.
+        if config.days and config.as_of is not None:
+            # --date already replaced the window, making --as-of meaningless; say so
+            # loudly since --as-of is a specific, intentful request being dropped.
+            log.warning("--as-of %s ignored because --date was given", config.as_of)
+        anchor = (
+            datetime.strptime(config.as_of, _DAY_FORMAT).date()
+            if config.as_of is not None
+            else None
+        )
+        days = list(config.days) or window_days(now, config.days_back, anchor)
 
         state = state_mod.load(layout.state_path(config.directory, config.partner))
         result = RunResult(manifest="", runts=runts, days=days)

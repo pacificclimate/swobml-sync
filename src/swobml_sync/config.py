@@ -32,6 +32,7 @@ class Config:
     directory: Path
     days_back: int
     days: tuple[str, ...]
+    as_of: str | None
     retention_days: int
     workers: int
     manifest: Path | None
@@ -48,11 +49,13 @@ def _is_valid_day(value: str) -> bool:
 
 
 def _valid_day(value: str) -> str:
-    """argparse ``type`` for a ``YYYYMMDD`` day; returns it unchanged."""
+    """argparse ``type`` for a ``YYYYMMDD`` day; returns it unchanged.
+
+    Shared by ``--date`` and ``--as-of``; argparse prefixes the offending flag
+    name, so the message stays flag-agnostic.
+    """
     if not _is_valid_day(value):
-        raise argparse.ArgumentTypeError(
-            f"invalid --date value {value!r}, expected YYYYMMDD"
-        )
+        raise argparse.ArgumentTypeError(f"invalid day {value!r}, expected YYYYMMDD")
     return value
 
 
@@ -97,6 +100,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="YYYYMMDD",
         help="sync exactly these days, replacing the window; repeatable (env: SWOBML_DATE)",
+    )
+    parser.add_argument(
+        "--as-of",
+        type=_valid_day,
+        default=None,
+        metavar="YYYYMMDD",
+        help="anchor the rolling window's newest day here instead of today (env: SWOBML_AS_OF)",
     )
     parser.add_argument(
         "--retention-days",
@@ -157,6 +167,23 @@ def _resolve_str(
 ) -> str | None:
     """CLI value, else the environment value; ``None`` if neither is set."""
     return cli_value if cli_value is not None else env.get(env_key)
+
+
+def _resolve_day(
+    parser: argparse.ArgumentParser,
+    cli_value: str | None,
+    env: Mapping[str, str],
+    env_key: str,
+) -> str | None:
+    """CLI day, else the env day, format-validated; ``None`` if neither is set.
+
+    The CLI value is already validated by argparse's ``_valid_day`` type, so this
+    only needs to re-check a value that arrived via the environment.
+    """
+    value = _resolve_str(cli_value, env, env_key)
+    if value is not None and not _is_valid_day(value):
+        parser.error(f"{env_key} must be a YYYYMMDD day (got {value!r})")
+    return value
 
 
 def _resolve_days(
@@ -232,6 +259,8 @@ def resolve_config(
 
     days = _resolve_days(parser, ns.date, env)
 
+    as_of = _resolve_day(parser, ns.as_of, env, "SWOBML_AS_OF")
+
     manifest_raw = _resolve_str(ns.manifest, env, "SWOBML_MANIFEST")
     manifest = Path(manifest_raw) if manifest_raw else None
 
@@ -247,6 +276,7 @@ def resolve_config(
         directory=Path(directory_raw),
         days_back=days_back,
         days=days,
+        as_of=as_of,
         retention_days=retention_days,
         workers=workers,
         manifest=manifest,

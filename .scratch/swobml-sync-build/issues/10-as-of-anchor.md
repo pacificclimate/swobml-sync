@@ -54,13 +54,13 @@ what turns that into a fast, clear failure.
 
 **Blocked by:** 03 — Rolling window & date semantics.
 
-**Status:** todo
+**Status:** done
 
-- [ ] `--as-of YYYYMMDD` (env `SWOBML_AS_OF`) sets the newest day of the window; `--days-back` counts backward from it
-- [ ] With `--as-of` absent, behaviour is byte-for-byte the current "anchored at today" window
-- [ ] `--as-of` is format-validated as a real `YYYYMMDD` day, reusing `--date`'s validator; no range check
-- [ ] Precedence CLI > env > default; explicit `--as-of` beats `SWOBML_AS_OF`
-- [ ] When `--date` is also given, `--as-of` is ignored and a WARNING is logged at run start
-- [ ] `runts` and the retention purge anchor remain real-today, unaffected by `--as-of`
-- [ ] README usage table gains an `--as-of` / `SWOBML_AS_OF` row; CONTEXT.md *Window* entry notes the anchor is `--as-of` when given, else today
-- [ ] Tests cover: the anchored day set, `--days-back` counting back from the anchor, env fallback + precedence, and the `--date` + `--as-of` warn-and-ignore path
+- [x] `--as-of YYYYMMDD` (env `SWOBML_AS_OF`) sets the newest day of the window; `--days-back` counts backward from it
+- [x] With `--as-of` absent, behaviour is byte-for-byte the current "anchored at today" window
+- [x] `--as-of` is format-validated as a real `YYYYMMDD` day, reusing `--date`'s validator; no range check
+- [x] Precedence CLI > env > default; explicit `--as-of` beats `SWOBML_AS_OF`
+- [x] When `--date` is also given, `--as-of` is ignored and a WARNING is logged at run start
+- [x] `runts` and the retention purge anchor remain real-today, unaffected by `--as-of`
+- [x] README usage table gains an `--as-of` / `SWOBML_AS_OF` row; CONTEXT.md *Window* entry notes the anchor is `--as-of` when given, else today
+- [x] Tests cover: the anchored day set, `--days-back` counting back from the anchor, env fallback + precedence, and the `--date` + `--as-of` warn-and-ignore path
