@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from functools import partial
 
+from swobml_sync import availability as availability_mod
 from swobml_sync import housekeeping, layout, state as state_mod
 from swobml_sync.client import HttpClient, NotFound
 from swobml_sync.config import Config
@@ -122,11 +123,17 @@ def run(
     """Sync ``config``'s days for its partner, returning what changed."""
     now = now or datetime.now(timezone.utc)
     runts = now.strftime(_RUNTS_FORMAT)
+    run_date = now.astimezone(timezone.utc).date()
     # The whole run logs to a file keyed by runts alongside its manifest, so the
     # log, manifest, and stdout summary all share one correlation key (ticket 06).
     with run_log_file(
         log, layout.log_path(config.directory, config.partner, runts), config.log_level
     ):
+        # One cheap discovery request per run learns the day span the server still
+        # offers. A total discovery failure aborts here (Tier 1) before any sync
+        # work; the window then drives both the input gate and retention (ticket 11).
+        window = availability_mod.discover(client)
+
         # Explicit --date days replace the window; otherwise the rolling lookback of
         # anchor…anchor-N, where the anchor is --as-of when given, else today. Only
         # these days are listed, delta'd, and merged into state, so untouched days
@@ -142,6 +149,12 @@ def run(
         )
         days = list(config.days) or window_days(now, config.days_back, anchor)
 
+        # Gate the resolved day set against the window before listing anything: an
+        # explicitly-named day out of range hard-fails, an incidental --days-back
+        # tail below the earliest available day is dropped (never listed, so the
+        # ticket-04 failure path never sees a provably-gone day).
+        days = availability_mod.gate(days, _explicit_days(config), window)
+
         state = state_mod.load(layout.state_path(config.directory, config.partner))
         result = RunResult(manifest="", runts=runts, days=days)
         records = _run_phases(config, client, days, state, result)
@@ -151,13 +164,7 @@ def run(
         # entries and run files past the retention horizon before state is saved,
         # so the purged days are not re-persisted (ticket 07).
         result.coverage = housekeeping.report_coverage(state, days)
-        housekeeping.purge(
-            state,
-            config.directory,
-            config.partner,
-            now.astimezone(timezone.utc).date(),
-            config.retention_days,
-        )
+        _purge(config, state, window, run_date)
 
         state_mod.save(layout.state_path(config.directory, config.partner), state)
 
@@ -175,6 +182,50 @@ def run(
             ",".join(days),
         )
     return result
+
+
+def _explicit_days(config: Config) -> set[str]:
+    """The days the user explicitly named, for the input gate.
+
+    Every ``--date`` value; otherwise the ``--as-of`` anchor when given. In
+    ``--date`` mode the window is replaced outright and ``--as-of`` is ignored, so
+    the two never overlap. A default (today-anchored) window names nothing — its
+    newest day is incidental, so a missing "today" is Tier 2, not a gate failure.
+    """
+    if config.days:
+        return set(config.days)
+    return {config.as_of} if config.as_of is not None else set()
+
+
+def _purge(
+    config: Config,
+    state: SyncState,
+    window: availability_mod.Availability,
+    run_date: date,
+) -> None:
+    """Purge expired state and run files on the run's retention horizon.
+
+    An explicit ``--retention-days`` overrides discovery and its floor and always
+    purges. Otherwise the discovered horizon (clamped up to the 30-day floor)
+    drives automatic purge — but only when the index still includes today; a
+    Tier-2 index missing today skips automatic purge this run (fail-closed: a
+    skipped purge self-heals next run, an over-purge silently re-downloads real
+    data). The retention anchor stays real-today regardless of ``--as-of``.
+    """
+    if config.retention_days is not None:
+        housekeeping.purge(
+            state, config.directory, config.partner, run_date, config.retention_days
+        )
+    elif window.contains(run_date):
+        auto_days = housekeeping.auto_retention_days(run_date, window.earliest)
+        housekeeping.purge(state, config.directory, config.partner, run_date, auto_days)
+    else:
+        log.info(
+            "availability window ends %s (before today %s); skipping automatic "
+            "purge this run",
+            window.latest.strftime(_DAY_FORMAT),
+            run_date.strftime(_DAY_FORMAT),
+        )
 
 
 def _run_phases(

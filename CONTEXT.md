@@ -73,10 +73,22 @@ One JSONL file per run, always written (even when empty).
 _Avoid_: output list, report, changelog
 
 **Retention**:
-How long sync state, manifests, and logs are kept — `--retention-days`, default
-65, matching the upstream ~65-day availability horizon beyond which source data
-no longer exists. Entries for days older than the horizon are purged each run.
+How long sync state, manifests, and logs are kept. By default the horizon is
+**discovered from the server** each run (back to the earliest day in the
+**availability window**), floored at 30 days so a truncated index can never purge
+recent state; `--retention-days N` overrides both the discovery and the floor.
+Entries for days older than the horizon are purged each run. The retention clock
+is always real-today, never moved by `--as-of`; cache files are never purged.
 _Avoid_: TTL, expiry, cleanup window
+
+**Availability window**:
+The `[earliest … latest]` span of `YYYYMMDD` day directories the server currently
+offers, discovered once per run from the root index. A sliding, two-sided window
+that moves forward each day. It is the authority for both the **input gate**
+(explicitly-named days outside it hard-fail; an incidental `--days-back` tail
+below `earliest` is dropped with a warning) and the automatic **retention**
+horizon. See ADR 0004.
+_Avoid_: availability horizon (alone), retention window
 
 **Hour coverage**:
 How many of the 24 hourly SWOB files a station has for a given day (`n/24`),

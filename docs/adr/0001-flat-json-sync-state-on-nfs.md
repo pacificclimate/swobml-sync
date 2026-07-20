@@ -12,8 +12,9 @@ state file.
 ## Consequences
 
 - The whole state map is held in memory and rewritten each run; fine at the
-  expected scale (thousands of small entries, bounded by the 65-day retention
-  horizon — see [0002](0002-change-detection-from-directory-listing.md) for the
-  per-file key).
+  expected scale (thousands of small entries, bounded by the retention horizon —
+  now discovered from the server rather than a fixed 65 days, see
+  [0004](0004-discover-availability-from-server.md); see
+  [0002](0002-change-detection-from-directory-listing.md) for the per-file key).
 - No concurrent-safe updates *within* a single partner; a partner is assumed to
   be synced by at most one run at a time.

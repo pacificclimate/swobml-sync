@@ -10,12 +10,16 @@ the stdout summary. There is deliberately no day-level "complete" verdict (see
 CONTEXT.md): stations appear over time and some never publish all 24 hours, so a
 per-day percentage would mislead.
 
-*Retention purge.* Anything older than ``--retention-days`` (default 65, the
-upstream availability horizon) is dropped: sync-state entries for expired days,
-and the manifest and log files whose ``runts`` predates the horizon. Purge is by
-calendar day relative to the run date and independent of the ``--days-back``
-fetch window — a short window still keeps a long memory. The current run's own
-files carry the run date's ``runts`` and so are never in scope.
+*Retention purge.* Anything older than the retention horizon is dropped:
+sync-state entries for expired days, and the manifest and log files whose
+``runts`` predates the horizon. Automatic purge derives the horizon from the
+server's discovered availability window (:func:`auto_retention_days`), clamped up
+to a 30-day floor so a truncated index can never delete recent state; an explicit
+``--retention-days`` overrides both discovery and the floor. Purge is by calendar
+day relative to the run date and independent of the ``--days-back`` fetch window —
+a short window still keeps a long memory. The current run's own files carry the
+run date's ``runts`` and so are never in scope. (See ADR 0004; the caller skips
+automatic purge entirely on a Tier-2 run whose index is missing today.)
 """
 
 from __future__ import annotations
@@ -31,6 +35,12 @@ from swobml_sync.state import SyncState
 log = logging.getLogger("swobml_sync")
 
 HOURS_PER_DAY = 24
+
+# The lowest horizon automatic purge may use, however low discovery comes back:
+# automatic purge may delete genuinely ancient state but must never delete state
+# newer than this, the primary defence against a truncated index that reports a
+# too-recent "earliest" (ADR 0004). An explicit --retention-days bypasses it.
+MIN_AUTO_RETENTION_DAYS = 30
 
 
 @dataclass(frozen=True)
@@ -92,6 +102,19 @@ def report_coverage(state: SyncState, days: list[str]) -> CoverageSummary:
             "coverage %s/%s: %d/%d", cov.day, cov.station, cov.hours, HOURS_PER_DAY
         )
     return aggregate(coverages)
+
+
+def auto_retention_days(run_date: date, earliest_available: date) -> int:
+    """The automatic retention horizon: how far back the server still reaches,
+    clamped up to :data:`MIN_AUTO_RETENTION_DAYS`.
+
+    ``run_date − earliest_available`` is what discovery says is still retrievable;
+    the ``max(…, 30)`` floor is a clamp-up only — automatic purge may delete
+    genuinely ancient state but never state newer than the floor, so a truncated
+    index reporting a too-recent "earliest" cannot trigger an over-purge.
+    """
+    discovered = (run_date - earliest_available).days
+    return max(discovered, MIN_AUTO_RETENTION_DAYS)
 
 
 def _horizon(run_date: date, retention_days: int) -> date:

@@ -73,6 +73,19 @@ def test_report_coverage_logs_each_station(caplog) -> None:  # type: ignore[no-u
     assert summary.hours == 26
 
 
+def test_auto_retention_reaches_back_to_the_earliest_available_day() -> None:
+    # The discovered horizon is exactly today − earliest, so automatic purge drops
+    # state older than the earliest still-retrievable day.
+    assert housekeeping.auto_retention_days(RUN_DATE, date(2026, 5, 1)) == 70
+
+
+def test_auto_retention_clamps_up_to_the_thirty_day_floor() -> None:
+    # However recent discovery's "earliest" comes back, the horizon never drops
+    # below 30 days, so recent state is never auto-purged on a truncated index.
+    assert housekeeping.auto_retention_days(RUN_DATE, date(2026, 7, 5)) == 30
+    assert housekeeping.MIN_AUTO_RETENTION_DAYS == 30
+
+
 def test_purge_state_drops_days_past_the_horizon() -> None:
     state = _state()
     purged = housekeeping.purge_state(state, RUN_DATE, retention_days=65)

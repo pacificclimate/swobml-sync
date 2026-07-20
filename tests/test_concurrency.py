@@ -83,6 +83,9 @@ class _TrackingClient:
         self.downloaded: list[str] = []
 
     def get_text(self, url: str) -> str:
+        if url == layout.root_url():
+            # Make the requested day available so discovery + the gate pass.
+            return _index([(DAY, True)])
         return self._pages[url]
 
     def download(self, url: str, dest: Path) -> None:

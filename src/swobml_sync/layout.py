@@ -22,6 +22,15 @@ RUNTS_FORMAT = "%Y%m%dT%H%M%SZ"
 DAY_FORMAT = "%Y%m%d"
 
 
+def root_url() -> str:
+    """The server's root directory index, listing its ``YYYYMMDD`` day dirs.
+
+    The one request availability discovery reads to learn the day span the server
+    still offers (see :mod:`swobml_sync.availability`).
+    """
+    return f"{BASE_URL}/"
+
+
 def day_url(partner: str, day: str) -> str:
     """The directory index URL for a partner's day (lists its stations)."""
     return f"{BASE_URL}/{day}/{_PARTNERS_SEGMENT}/{partner}/{day}/"

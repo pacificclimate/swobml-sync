@@ -7,13 +7,20 @@ from pathlib import Path
 
 import pytest
 
+from swobml_sync import layout
 from swobml_sync.cli import main
+
+# A root index that makes 20260710 (the day these tests request) available, so
+# discovery passes and the input gate lets the run proceed.
+_ROOT_INDEX = '<pre><a href="20260710/">20260710/</a>  2026-07-10 00:00  -</pre>'
 
 
 class _StubClient:
     """A client that reports an empty day so ``main`` runs without a network."""
 
     def get_text(self, url: str) -> str:
+        if url == layout.root_url():
+            return _ROOT_INDEX
         return "<html><body><pre></pre></body></html>"
 
     def download(self, url: str, dest: Path) -> None:  # pragma: no cover - never called
@@ -54,6 +61,8 @@ class _OneFailingFileClient:
     """Lists one station with one file whose download always fails permanently."""
 
     def get_text(self, url: str) -> str:
+        if url == layout.root_url():
+            return _ROOT_INDEX
         if url.endswith("kenn/"):
             return '<pre><a href="f.xml">f.xml</a>   2026-07-10 01:50  3.3K</pre>'
         return '<pre><a href="kenn/">kenn/</a>   2026-07-10 01:50    -</pre>'

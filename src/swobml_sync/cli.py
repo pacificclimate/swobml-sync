@@ -12,10 +12,15 @@ import sys
 from dataclasses import asdict
 from typing import Sequence
 
+from swobml_sync.availability import DiscoveryError, GateError
 from swobml_sync.client import HttpClient, RequestsClient
 from swobml_sync.config import resolve_config
 from swobml_sync.logsetup import LOG_FORMAT
 from swobml_sync.sync import run
+
+# Exit code for a pre-flight abort (availability discovery or the input gate),
+# kept distinct from 1 (a run that did work but had per-file failures to retry).
+EXIT_PREFLIGHT = 2
 
 
 def main(argv: Sequence[str] | None = None, client: HttpClient | None = None) -> int:
@@ -28,10 +33,16 @@ def main(argv: Sequence[str] | None = None, client: HttpClient | None = None) ->
     )
     # Size the real client's connection pool to the worker count so concurrent
     # discovery and downloads reuse one connection per worker (see ticket 05).
-    result = run(
-        config,
-        client if client is not None else RequestsClient(pool_size=config.workers),
-    )
+    try:
+        result = run(
+            config,
+            client if client is not None else RequestsClient(pool_size=config.workers),
+        )
+    except (DiscoveryError, GateError) as exc:
+        # A Tier-1 discovery failure or an out-of-window explicit day: abort before
+        # any sync work, non-zero, with the reason (ticket 11 / ADR 0004).
+        logging.getLogger("swobml_sync").error("aborting: %s", exc)
+        return EXIT_PREFLIGHT
     json.dump(
         {
             "runts": result.runts,

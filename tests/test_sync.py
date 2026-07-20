@@ -8,13 +8,14 @@ canned file bodies keyed by the exact URLs :mod:`swobml_sync.layout` builds.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
-from swobml_sync import layout, state
+from swobml_sync import cli, layout, state
 from swobml_sync.atomicio import write_atomic
+from swobml_sync.availability import DiscoveryError, GateError
 from swobml_sync.config import resolve_config
 from swobml_sync.sync import run
 
@@ -34,12 +35,47 @@ def _read(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
 
 
+def root_index(days: list[str]) -> str:
+    """An Apache root-index page listing ``days`` as ``YYYYMMDD/`` directories."""
+    rows = "\n".join(
+        f'<img src="/icons/folder.gif" alt="[DIR]"> '
+        f'<a href="{day}/">{day}/</a>  2026-07-10 00:00  -'
+        for day in days
+    )
+    return (
+        "<html><body><h1>Index of /</h1><pre>"
+        '<img src="/icons/back.gif" alt="[PARENTDIR]"> '
+        '<a href="/parent/">Parent Directory</a>   -\n'
+        f"{rows}\n<hr></pre></body></html>"
+    )
+
+
+def _day_span(start: str, end: str) -> list[str]:
+    """Every ``YYYYMMDD`` day from ``start`` to ``end`` inclusive."""
+    lo = datetime.strptime(start, "%Y%m%d").date()
+    hi = datetime.strptime(end, "%Y%m%d").date()
+    out: list[str] = []
+    cur = lo
+    while cur <= hi:
+        out.append(cur.strftime("%Y%m%d"))
+        cur += timedelta(days=1)
+    return out
+
+
+# The availability window the fake serves by default: earliest 20260501, latest
+# 20260710 (the fixture day). Discovery reads this so runs don't need to stub the
+# root index; tests exercising discovery/gate edges override it explicitly.
+AVAILABLE_DAYS = _day_span("20260501", "20260710")
+
+
 class FakeClient:
     """Serves index pages and file bodies keyed by URL; records what it fetched.
 
     ``text_errors`` maps a URL to an exception ``get_text`` raises instead of
     serving it, standing in for a ``404`` (:class:`NotFound`) or a listing that
-    kept failing after the client's own retries were exhausted.
+    kept failing after the client's own retries were exhausted. The root index
+    (availability discovery) is served from a default wide window unless a test
+    supplies its own under ``layout.root_url()`` or errors it via ``text_errors``.
     """
 
     def __init__(
@@ -57,6 +93,8 @@ class FakeClient:
     def get_text(self, url: str) -> str:
         if url in self._text_errors:
             raise self._text_errors[url]
+        if url == layout.root_url() and url not in self._pages:
+            return root_index(AVAILABLE_DAYS)
         return self._pages[url]
 
     def download(self, url: str, dest: Path) -> None:
@@ -416,3 +454,147 @@ def test_run_purges_state_and_files_past_retention(tmp_path: Path) -> None:
     assert layout.log_path(tmp_path, PARTNER, recent_runts).exists()
     assert layout.default_manifest_path(tmp_path, PARTNER, result.runts).exists()
     assert layout.log_path(tmp_path, PARTNER, result.runts).exists()
+
+
+# --- ticket 11: availability discovery, input gate & dynamic retention -------
+
+
+def test_tier1_discovery_fetch_failure_aborts_run(tmp_path: Path) -> None:
+    # The root index keeps failing after retries: a total discovery failure aborts
+    # the whole run before any sync work rather than syncing blindly.
+    client = FakeClient(
+        _pages(),
+        _bodies(),
+        text_errors={layout.root_url(): RuntimeError("503 exhausted")},
+    )
+    with pytest.raises(DiscoveryError):
+        run(_config(tmp_path), client, now=NOW)
+    assert client.downloaded == []
+
+
+def test_tier1_zero_day_dirs_aborts_run(tmp_path: Path) -> None:
+    # A root index that parses but holds no YYYYMMDD directory is a Tier-1 abort.
+    pages = _pages()
+    pages[layout.root_url()] = root_index(["notes", "logs"])
+    with pytest.raises(DiscoveryError):
+        run(_config(tmp_path), FakeClient(pages, _bodies()), now=NOW)
+
+
+def test_named_day_too_old_hard_fails_before_listing(tmp_path: Path) -> None:
+    # --date below the earliest available day fails before any listing; the day is
+    # never fetched, so nothing is downloaded and no failure is counted.
+    config = resolve_config([PARTNER, str(tmp_path), "--date", "20260101"], env={})
+    client = FakeClient(_pages(), _bodies())
+    with pytest.raises(GateError):
+        run(config, client, now=NOW)
+    assert client.downloaded == []
+
+
+def test_named_future_day_hard_fails_before_listing(tmp_path: Path) -> None:
+    # The upper edge fails too: a named day beyond `latest` cannot be delivered.
+    config = resolve_config([PARTNER, str(tmp_path), "--date", "20260801"], env={})
+    with pytest.raises(GateError):
+        run(config, FakeClient(_pages(), _bodies()), now=NOW)
+
+
+def test_incidental_tail_below_floor_is_dropped_and_rest_syncs(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # --as-of 20260502 --days-back 3 → [0502, 0501, 0430, 0429]; the earliest
+    # available day is 20260501, so 0430/0429 are an incidental tail: dropped with
+    # one warning and never listed, while 0502/0501 sync normally.
+    kept = ["20260502", "20260501"]
+    config = resolve_config(
+        [PARTNER, str(tmp_path), "--as-of", "20260502", "--days-back", "3"], env={}
+    )
+    client = FakeClient(_pages_for_days(kept), _bodies_for_days(kept))
+    with caplog.at_level("WARNING", logger="swobml_sync"):
+        result = run(config, client, now=NOW)
+
+    assert result.days == kept
+    # Dropped days never reach the ticket-04 failure path.
+    assert result.failed == 0
+    assert (result.added, result.changed) == (6, 0)
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "20260430" in warnings[0].getMessage()
+
+
+def test_tier2_missing_today_syncs_but_skips_automatic_purge(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # The index's latest day is yesterday (today's dir not published yet). The run
+    # still syncs today, but automatic purge is skipped — a missing today casts
+    # doubt on the discovered horizon (fail-closed), so ancient state survives.
+    stale_day = "20260101"
+    seeded = {stale_day: {"anfi": {"a.xml": {"mtime": "m", "size": "1K"}}}}
+    state.save(layout.state_path(tmp_path, PARTNER), seeded)
+
+    pages = _pages()  # serves DAY = 20260710 (today) normally
+    pages[layout.root_url()] = root_index(_day_span("20260501", "20260709"))
+    config = resolve_config([PARTNER, str(tmp_path), "--days-back", "0"], env={})
+    with caplog.at_level("INFO", logger="swobml_sync"):
+        result = run(config, FakeClient(pages, _bodies()), now=NOW)
+
+    assert result.days == [DAY]  # today still synced (incidental, not gated out)
+    assert result.added == 3
+    saved = state.load(layout.state_path(tmp_path, PARTNER))
+    assert stale_day in saved  # automatic purge skipped, so it is retained
+    assert any("skipping automatic purge" in r.getMessage() for r in caplog.records)
+
+
+def test_truncated_index_clamps_auto_purge_to_thirty_day_floor(tmp_path: Path) -> None:
+    # A truncated index reports a too-recent earliest (5 days back). The 30-day
+    # floor clamps the horizon up so state inside 30 days is never auto-purged.
+    protected = "20260620"  # 20 days old: newer than the floor, must survive
+    ancient = "20260101"  # genuinely ancient: purged
+    seeded = {
+        protected: {"anfi": {"a.xml": {"mtime": "m", "size": "1K"}}},
+        ancient: {"anfi": {"b.xml": {"mtime": "m", "size": "1K"}}},
+    }
+    state.save(layout.state_path(tmp_path, PARTNER), seeded)
+
+    pages = _pages()
+    pages[layout.root_url()] = root_index(_day_span("20260705", "20260710"))
+    result = run(_config(tmp_path), FakeClient(pages, _bodies()), now=NOW)
+
+    saved = state.load(layout.state_path(tmp_path, PARTNER))
+    assert protected in saved  # protected by the 30-day floor despite earliest=0705
+    assert ancient not in saved
+    assert DAY in saved
+    assert result.failed == 0
+
+
+def test_explicit_retention_days_overrides_discovery_and_floor(tmp_path: Path) -> None:
+    # --retention-days 5 bypasses discovery (earliest 20260501, which would keep
+    # 20260601) and the 30-day floor, purging everything older than 5 days.
+    recent = "20260601"
+    seeded = {recent: {"anfi": {"a.xml": {"mtime": "m", "size": "1K"}}}}
+    state.save(layout.state_path(tmp_path, PARTNER), seeded)
+
+    config = resolve_config(
+        [PARTNER, str(tmp_path), "--date", DAY, "--retention-days", "5"], env={}
+    )
+    run(config, FakeClient(_pages(), _bodies()), now=NOW)
+
+    saved = state.load(layout.state_path(tmp_path, PARTNER))
+    assert recent not in saved  # 39 days old > 5-day override → purged
+    assert DAY in saved
+
+
+def test_cli_returns_nonzero_on_tier1_discovery_failure(tmp_path: Path) -> None:
+    client = FakeClient(
+        _pages(),
+        _bodies(),
+        text_errors={layout.root_url(): RuntimeError("503 exhausted")},
+    )
+    code = cli.main([PARTNER, str(tmp_path), "--date", DAY], client=client)
+    assert code == cli.EXIT_PREFLIGHT != 0
+
+
+def test_cli_returns_nonzero_on_gate_failure(tmp_path: Path) -> None:
+    code = cli.main(
+        [PARTNER, str(tmp_path), "--date", "20260101"],
+        client=FakeClient(_pages(), _bodies()),
+    )
+    assert code == cli.EXIT_PREFLIGHT != 0

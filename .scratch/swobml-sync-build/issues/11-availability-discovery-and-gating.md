@@ -117,15 +117,26 @@ purge and manifest/log purge stay **connected on one horizon** (as today).
 `--as-of` anchor and its tail); 07 — End-of-run housekeeping (this rewrites the
 retention horizon).
 
-**Status:** todo
+**Status:** done
 
-- [ ] One root-index fetch per run yields the two-sided availability window `[earliest … latest]`, reusing `HttpClient` + `listing`
-- [ ] Tier 1: root-index fetch failure OR zero valid `YYYYMMDD` dirs aborts the run non-zero before any sync work
-- [ ] Tier 2: a valid index missing the current UTC day proceeds with sync + gate but skips automatic purge
-- [ ] Gate: any `--date` value or the `--as-of` anchor outside the window (too old or future) hard-fails before listing
-- [ ] Gate: incidental `--days-back` tail below the earliest available day is warned about, dropped, and never listed; the rest syncs
-- [ ] Dropped-by-gate days never reach the ticket-04 failure/exit path
-- [ ] Automatic purge uses `max(discovered_days, 30)`; explicit `--retention-days` overrides discovery and the floor
-- [ ] Retention anchor stays real-today; cache files remain unpurged
-- [ ] ADR 0004 written; CONTEXT.md *Retention* rewritten + *Availability window* added; README + ADR 0001 touch-ups done
-- [ ] Tests cover: window discovery parse, both failure tiers, hard-fail on named out-of-window (old and future) days, warn+drop of the tail, the `max(discovered,30)` clamp, and the `--retention-days` override
+- [x] One root-index fetch per run yields the two-sided availability window `[earliest … latest]`, reusing `HttpClient` + `listing`
+- [x] Tier 1: root-index fetch failure OR zero valid `YYYYMMDD` dirs aborts the run non-zero before any sync work
+- [x] Tier 2: a valid index missing the current UTC day proceeds with sync + gate but skips automatic purge
+- [x] Gate: any `--date` value or the `--as-of` anchor outside the window (too old or future) hard-fails before listing
+- [x] Gate: incidental `--days-back` tail below the earliest available day is warned about, dropped, and never listed; the rest syncs
+- [x] Dropped-by-gate days never reach the ticket-04 failure/exit path
+- [x] Automatic purge uses `max(discovered_days, 30)`; explicit `--retention-days` overrides discovery and the floor
+- [x] Retention anchor stays real-today; cache files remain unpurged
+- [x] ADR 0004 written; CONTEXT.md *Retention* rewritten + *Availability window* added; README + ADR 0001 touch-ups done
+- [x] Tests cover: window discovery parse, both failure tiers, hard-fail on named out-of-window (old and future) days, warn+drop of the tail, the `max(discovered,30)` clamp, and the `--retention-days` override
+
+## Comments
+
+Implemented via `/implement`. New `availability` module owns discovery
+(`discover` → `Availability`, Tier-1 `DiscoveryError`) and the input gate
+(`gate` → kept days, `GateError`); `layout.root_url()` names the root index.
+`config.retention_days` is now `int | None` (absent ⇒ discover). `sync.run`
+discovers once, gates the resolved day set, and routes purge through `_purge`
+(explicit `--retention-days` → override; else `housekeeping.auto_retention_days`
+clamped at 30; Tier-2 missing-today ⇒ skip). CLI maps both abort exceptions to
+exit code 2 (`EXIT_PREFLIGHT`). 135 tests pass; mypy + black clean.

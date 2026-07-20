@@ -26,8 +26,8 @@ lasting consequences see [`docs/adr/`](../../docs/adr/).
 | 07 | [End-of-run housekeeping](issues/07-end-of-run-housekeeping.md) | 03, 06 | done |
 | 08 | [Dockerfile](issues/08-dockerfile.md) | 01 | done |
 | 09 | [Dual-registry CI](issues/09-dual-registry-ci.md) | 08 | done |
-| 10 | [Moveable `--as-of` anchor](issues/10-as-of-anchor.md) | 03 | todo |
-| 11 | [Availability discovery, gate & dynamic retention](issues/11-availability-discovery-and-gating.md) | 10, 07 | todo |
+| 10 | [Moveable `--as-of` anchor](issues/10-as-of-anchor.md) | 03 | done |
+| 11 | [Availability discovery, gate & dynamic retention](issues/11-availability-discovery-and-gating.md) | 10, 07 | done |
 
 ```
 01 ─┬─ 02 ─┬─ 03 ─┬─ 05
@@ -38,8 +38,7 @@ lasting consequences see [`docs/adr/`](../../docs/adr/).
     └─ 08 ── 09
 ```
 
-**Frontier:** 10 (moveable `--as-of` anchor) is ready — it is blocked only by
-03, which is done. 11 (availability discovery, input gate & dynamic retention)
-unlocks once 10 lands.
+**Frontier:** none — every ticket is done. 10 (moveable `--as-of` anchor) and 11
+(availability discovery, input gate & dynamic retention) have both landed.
 
 Work one ticket at a time with `/implement`, clearing context between tickets.

@@ -10,7 +10,6 @@ import pytest
 from swobml_sync.config import (
     DEFAULT_DAYS_BACK,
     DEFAULT_LOG_LEVEL,
-    DEFAULT_RETENTION_DAYS,
     DEFAULT_WORKERS,
     Config,
     resolve_config,
@@ -27,7 +26,9 @@ def test_defaults_with_positionals_only() -> None:
     assert c.directory == Path("/data")
     assert c.days_back == DEFAULT_DAYS_BACK == 2
     assert c.days == ()
-    assert c.retention_days == DEFAULT_RETENTION_DAYS == 65
+    # Absent means "discover the retention horizon from the server", not a fixed
+    # default (ticket 11 / ADR 0004).
+    assert c.retention_days is None
     assert c.workers == DEFAULT_WORKERS == 8
     assert c.manifest is None
     assert c.log_level == DEFAULT_LOG_LEVEL == "INFO"
@@ -61,6 +62,19 @@ def test_env_flag_fallback() -> None:
     assert c.workers == 16
     assert c.retention_days == 30
     assert c.log_level == "DEBUG"  # normalised to upper-case
+
+
+def test_explicit_retention_days_from_cli_overrides_discovery() -> None:
+    # An explicit value is carried through so the run bypasses discovery/floor.
+    c = cfg(["p", "/d", "--retention-days", "10"])
+    assert c.retention_days == 10
+
+
+def test_explicit_retention_days_may_go_below_the_floor() -> None:
+    # The user may deliberately purge below the 30-day auto floor; config does not
+    # clamp it (the floor only applies to the discovered default).
+    c = cfg(["p", "/d", "--retention-days", "5"])
+    assert c.retention_days == 5
 
 
 def test_repeated_date_collects_list() -> None:

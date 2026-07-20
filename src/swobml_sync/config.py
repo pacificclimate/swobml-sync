@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 DEFAULT_DAYS_BACK = 2
-DEFAULT_RETENTION_DAYS = 65
 DEFAULT_WORKERS = 8
 DEFAULT_LOG_LEVEL = "INFO"
 
@@ -33,7 +32,7 @@ class Config:
     days_back: int
     days: tuple[str, ...]
     as_of: str | None
-    retention_days: int
+    retention_days: int | None
     workers: int
     manifest: Path | None
     log_level: str
@@ -113,7 +112,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="N",
-        help=f"purge state/manifests/logs older than N days (default {DEFAULT_RETENTION_DAYS}; env: SWOBML_RETENTION_DAYS)",
+        help="purge state/manifests/logs older than N days; overrides the "
+        "server-discovered horizon and its 30-day floor (env: SWOBML_RETENTION_DAYS)",
     )
     parser.add_argument(
         "--workers",
@@ -157,6 +157,35 @@ def _resolve_int(
             parser.error(f"{env_key} must be an integer (got {env[env_key]!r})")
     else:
         value = default
+    if value < minimum:
+        parser.error(f"{flag} must be >= {minimum} (got {value})")
+    return value
+
+
+def _resolve_opt_int(
+    parser: argparse.ArgumentParser,
+    cli_value: int | None,
+    env: Mapping[str, str],
+    env_key: str,
+    flag: str,
+    *,
+    minimum: int,
+) -> int | None:
+    """CLI value, else validated env value, else ``None`` (absent, not defaulted).
+
+    ``None`` marks "not set" so the caller can fall back to a discovered value
+    rather than a fixed default; a value that *is* supplied still enforces the
+    minimum.
+    """
+    if cli_value is not None:
+        value = cli_value
+    elif env.get(env_key):
+        try:
+            value = int(env[env_key])
+        except ValueError:
+            parser.error(f"{env_key} must be an integer (got {env[env_key]!r})")
+    else:
+        return None
     if value < minimum:
         parser.error(f"{flag} must be >= {minimum} (got {value})")
     return value
@@ -238,12 +267,13 @@ def resolve_config(
         "--days-back",
         minimum=0,
     )
-    retention_days = _resolve_int(
+    # Absent (None) means "discover the horizon from the server, floored at 30";
+    # only an explicit value overrides that (ticket 11 / ADR 0004).
+    retention_days = _resolve_opt_int(
         parser,
         ns.retention_days,
         env,
         "SWOBML_RETENTION_DAYS",
-        DEFAULT_RETENTION_DAYS,
         "--retention-days",
         minimum=1,
     )
