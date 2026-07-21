@@ -28,6 +28,9 @@ lasting consequences see [`docs/adr/`](../../docs/adr/).
 | 09 | [Dual-registry CI](issues/09-dual-registry-ci.md) | 08 | done |
 | 10 | [Moveable `--as-of` anchor](issues/10-as-of-anchor.md) | 03 | done |
 | 11 | [Availability discovery, gate & dynamic retention](issues/11-availability-discovery-and-gating.md) | 10, 07 | done |
+| 12 | [Request stats: count, surface & persist](issues/12-request-stats-count-persist.md) | — | ready-for-agent |
+| 13 | [Stats dashboard skeleton + aggregate data model](issues/13-dashboard-skeleton-and-data-model.md) | 12 | ready-for-agent |
+| 14 | [Per-partner time-series charts](issues/14-partner-time-series-charts.md) | 13 | ready-for-agent |
 
 ```
 01 ─┬─ 02 ─┬─ 03 ─┬─ 05
@@ -36,9 +39,13 @@ lasting consequences see [`docs/adr/`](../../docs/adr/).
     │      │    03 ─┘      10 ─┘
     │      └─ 03 ── 10
     └─ 08 ── 09
+
+12 ── 13 ── 14
 ```
 
-**Frontier:** none — every ticket is done. 10 (moveable `--as-of` anchor) and 11
-(availability discovery, input gate & dynamic retention) have both landed.
+**Frontier:** 12 — Request stats. Tickets 01–11 (the sync tool itself) are all
+done; 12–14 add per-run request stats and a separate `swobml-dashboard` command
+that aggregates them across partners. Ticket 13 builds the aggregate data model
+that 14 charts, so its data-model layer is the explicit contract handed to 14.
 
 Work one ticket at a time with `/implement`, clearing context between tickets.
