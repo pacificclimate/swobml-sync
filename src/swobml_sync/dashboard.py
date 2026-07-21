@@ -34,7 +34,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from swobml_sync import layout
 from swobml_sync.atomicio import write_atomic
@@ -243,13 +243,211 @@ def _rollup(partners: list[PartnerSeries]) -> Rollup:
     )
 
 
+# --- charts: per-partner inline-SVG trends (ticket 14) --------------------
+#
+# A pure rendering addition over the model above: it consumes each
+# :class:`PartnerSeries`'s already-sorted ``runs`` and draws them, adding no
+# parsing or aggregation. The charts are hand-rolled inline SVG + CSS — zero
+# runtime/CDN dependencies, so the page still renders offline as one file.
+#
+# Colour follows the dataviz skill's reference categorical palette: series are
+# assigned slots 1-3 in fixed order (never cycled), themed light/dark by the
+# ``--series-N`` custom properties in :data:`_STYLE`. A series carries identity
+# through its legend key, never colour alone; SVG marks wear the series colour
+# while all text stays in the muted ink token.
+
+# The SVG user-space box. Charts scale to the card via ``width:100%`` on a
+# viewBox, so these are the drawing coordinates, not rendered pixels. The inset
+# keeps a 4px end-dot and its 2px surface ring off the edges.
+_CHART_W = 240
+_CHART_H = 52
+_CHART_INSET = 6
+
+
+def _fmt_count(value: float) -> str:
+    """A run counter (requests, deltas) for an end-dot tooltip."""
+    return f"{int(round(value)):,}"
+
+
+def _fmt_pct(value: float) -> str:
+    """A coverage percentage for an end-dot tooltip."""
+    return f"{value:.0f}%"
+
+
+def _plot_points(
+    values: Sequence[float | None], lo: float, hi: float
+) -> list[tuple[float, float] | None]:
+    """Map a series' per-run values onto the chart box, oldest→newest left→right.
+
+    ``None`` maps to ``None`` — a gap, so a run that is missing this metric (e.g.
+    coverage with nothing coverable) breaks the line rather than plotting a false
+    zero. A lone point is centred horizontally so a single-run partner renders a
+    dot in the middle instead of hugging the left edge. A flat series (``lo == hi``)
+    sits mid-height rather than dividing by zero.
+    """
+    n = len(values)
+    span = hi - lo
+    inner_w = _CHART_W - 2 * _CHART_INSET
+    inner_h = _CHART_H - 2 * _CHART_INSET
+    points: list[tuple[float, float] | None] = []
+    for i, value in enumerate(values):
+        if value is None:
+            points.append(None)
+            continue
+        x = _CHART_W / 2 if n == 1 else _CHART_INSET + i * inner_w / (n - 1)
+        frac = 0.5 if span == 0 else (value - lo) / span
+        y = _CHART_INSET + (1 - frac) * inner_h
+        points.append((round(x, 2), round(y, 2)))
+    return points
+
+
+@dataclass(frozen=True)
+class _Series:
+    """One line on a chart: its legend label, categorical slot (1-3) and the
+    per-run values (``None`` where the run lacks the metric)."""
+
+    label: str
+    slot: int
+    values: list[float | None]
+
+
+def _domain(series: Sequence[_Series]) -> tuple[float, float] | None:
+    """The shared y-range across every series on a chart, or ``None`` when nothing
+    is plottable (all runs missing every metric). Sharing one range keeps series on
+    a chart directly comparable — the single-axis rule; two measures never get two
+    scales."""
+    observed = [v for s in series for v in s.values if v is not None]
+    if not observed:
+        return None
+    return min(observed), max(observed)
+
+
+def _series_marks(
+    series: _Series, points: Sequence[tuple[float, float] | None], tip: str
+) -> str:
+    """Draw one series: a 2px line through its contiguous points plus a filled
+    end-dot with a surface ring. Contiguous runs of points become separate
+    ``<polyline>``s so a mid-series gap (a ``None``) leaves a break, not a line to
+    zero. A single point draws only the dot — no line — so a one-run partner and a
+    gap-isolated point both render sensibly. The end-dot carries a ``<title>`` so a
+    hover surfaces the latest value — native, no script or dependency."""
+    marks: list[str] = []
+    segment: list[tuple[float, float]] = []
+
+    def flush() -> None:
+        if len(segment) >= 2:
+            coords = " ".join(f"{x},{y}" for x, y in segment)
+            marks.append(f'<polyline class="line s{series.slot}" points="{coords}"/>')
+        segment.clear()
+
+    for point in points:
+        if point is None:
+            flush()
+        else:
+            segment.append(point)
+    flush()
+
+    real = [p for p in points if p is not None]
+    if real:
+        cx, cy = real[-1]
+        marks.append(
+            f'<circle class="dot f{series.slot}" cx="{cx}" cy="{cy}" r="4">'
+            f"<title>{html.escape(tip)}</title></circle>"
+        )
+    return "".join(marks)
+
+
+def _chart(
+    title: str,
+    series: Sequence[_Series],
+    *,
+    domain: tuple[float, float] | None = None,
+    value_fmt: Callable[[float], str] = _fmt_count,
+) -> str:
+    """One titled inline-SVG line chart over a partner's run series.
+
+    ``domain`` fixes the y-range when the metric has a natural one — coverage is a
+    percentage, plotted 0-100 so a 48→52 wiggle reads as a wiggle, not a collapse;
+    left ``None`` the range is taken from the data (unbounded counts). ``value_fmt``
+    renders each series' latest value for its end-dot tooltip.
+
+    A legend is emitted for two or more series (identity never rests on colour
+    alone); a single-series chart leans on its title instead. When no run carries
+    any of the chart's metrics the plot area is empty but the figure — title and
+    all — still renders, so a missing metric degrades gracefully."""
+    span = domain if domain is not None else _domain(series)
+    body = ""
+    if span is not None:
+        lo, hi = span
+        parts: list[str] = []
+        for s in series:
+            latest = next((v for v in reversed(s.values) if v is not None), None)
+            tip = s.label if latest is None else f"{s.label}: {value_fmt(latest)}"
+            parts.append(_series_marks(s, _plot_points(s.values, lo, hi), tip))
+        body = "".join(parts)
+    svg = (
+        f'<svg class="plot" viewBox="0 0 {_CHART_W} {_CHART_H}" '
+        f'role="img" aria-label="{html.escape(title)} trend per run">{body}</svg>'
+    )
+    legend = _legend(series) if len(series) >= 2 else ""
+    return (
+        '<figure class="chart">'
+        f'<figcaption class="chart-title">{html.escape(title)}</figcaption>'
+        f"{svg}{legend}</figure>"
+    )
+
+
+def _legend(series: Sequence[_Series]) -> str:
+    """A row of colour-key + label pairs. The key swatch wears the series colour;
+    the label stays in the muted text token (text never wears the data colour)."""
+    keys = "".join(
+        f'<span class="key"><i class="swatch k{s.slot}"></i>'
+        f"{html.escape(s.label)}</span>"
+        for s in series
+    )
+    return f'<div class="legend">{keys}</div>'
+
+
+def _charts(series: PartnerSeries) -> str:
+    """The three per-partner trend charts, drawn purely from the model's run series:
+    requests (listing vs downloads), deltas (added/changed/failed) and coverage %.
+    Coverage carries ``None`` for runs with nothing coverable, gapping the line."""
+    runs = series.runs
+    requests = _chart(
+        "Requests",
+        [
+            _Series("Listing", 1, [float(r.listing_requests) for r in runs]),
+            _Series("Downloads", 2, [float(r.downloads) for r in runs]),
+        ],
+    )
+    deltas = _chart(
+        "Deltas",
+        [
+            _Series("Added", 1, [float(r.added) for r in runs]),
+            _Series("Changed", 2, [float(r.changed) for r in runs]),
+            _Series("Failed", 3, [float(r.failed) for r in runs]),
+        ],
+    )
+    coverage = _chart(
+        "Coverage %",
+        [_Series("Coverage", 1, [r.coverage_pct for r in runs])],
+        domain=(0.0, 100.0),
+        value_fmt=_fmt_pct,
+    )
+    return f'<div class="charts">{requests}{deltas}{coverage}</div>'
+
+
 # --- rendering: a thin, pure layer over the model -------------------------
 
 _STYLE = """
 :root { color-scheme: light dark; --bg:#f6f7f9; --card:#fff; --ink:#1a1d21;
-  --muted:#5b6470; --line:#e3e6ea; --accent:#2563eb; }
+  --muted:#5b6470; --line:#e3e6ea; --accent:#2563eb;
+  /* dataviz reference categorical slots 1-3 (light), assigned in fixed order. */
+  --series-1:#2a78d6; --series-2:#008300; --series-3:#e87ba4; }
 @media (prefers-color-scheme: dark) { :root { --bg:#14171a; --card:#1d2125;
-  --ink:#e8eaed; --muted:#9aa4b0; --line:#2c3238; --accent:#5b9bff; } }
+  --ink:#e8eaed; --muted:#9aa4b0; --line:#2c3238; --accent:#5b9bff;
+  /* Same three hues, stepped for the dark surface (validated as a set). */
+  --series-1:#3987e5; --series-2:#008300; --series-3:#d55181; } }
 * { box-sizing: border-box; }
 body { margin:0; padding:2rem 1.5rem; background:var(--bg); color:var(--ink);
   font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
@@ -275,7 +473,21 @@ h1 { font-size:1.4rem; margin:0 0 1.25rem; }
   font-variant-numeric:tabular-nums; }
 .card-stats .label { font-size:.7rem; text-transform:uppercase; letter-spacing:.03em;
   color:var(--muted); }
-.charts:empty { display:none; }
+.charts { display:flex; flex-direction:column; gap:.9rem; margin-top:1.1rem; }
+.chart-title { font-size:.68rem; text-transform:uppercase; letter-spacing:.04em;
+  color:var(--muted); margin:0 0 .25rem; }
+.plot { display:block; width:100%; height:auto; overflow:visible; }
+.plot .line { fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+.plot .dot { stroke:var(--card); stroke-width:2; }
+.plot .s1 { stroke:var(--series-1); } .plot .f1 { fill:var(--series-1); }
+.plot .s2 { stroke:var(--series-2); } .plot .f2 { fill:var(--series-2); }
+.plot .s3 { stroke:var(--series-3); } .plot .f3 { fill:var(--series-3); }
+.legend { display:flex; flex-wrap:wrap; gap:.55rem 1rem; margin:.35rem 0 0;
+  font-size:.68rem; color:var(--muted); }
+.legend .key { display:inline-flex; align-items:center; gap:.35rem; }
+.legend .swatch { width:11px; height:2px; border-radius:1px; display:inline-block; }
+.legend .k1 { background:var(--series-1); } .legend .k2 { background:var(--series-2); }
+.legend .k3 { background:var(--series-3); }
 .empty { padding:3rem 1.5rem; text-align:center; color:var(--muted);
   background:var(--card); border:1px dashed var(--line); border-radius:12px; }
 """.strip()
@@ -327,9 +539,8 @@ def _card(series: PartnerSeries) -> str:
         f"<h2>{html.escape(series.partner)}</h2>"
         f'<p class="runts">latest run {html.escape(run.runts)}</p>'
         f'<div class="card-stats">{cells}</div>'
-        # Ticket 14 fills this with per-partner inline-SVG charts; empty here so
-        # the CSS hides it and the skeleton renders clean.
-        '<div class="charts"></div>'
+        # Per-partner inline-SVG trends over the retained run window (ticket 14).
+        f"{_charts(series)}"
         "</article>"
     )
 

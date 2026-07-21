@@ -36,12 +36,12 @@ exposes and turns it into charts. No changes to how stats are read or modelled.
 **Blocked by:** 13 — Dashboard skeleton + aggregate data model (this consumes the
 per-partner series that ticket exposes and renders into its cards).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Each partner card renders inline-SVG line charts for requests (listing vs download), deltas (added/changed/failed), and coverage %, one raw point per run
-- [ ] Charts are drawn purely from ticket 13's data model — no new parsing/globbing/aggregation
-- [ ] Zero external dependencies; the page remains one self-contained offline file
-- [ ] Single-run and missing-metric partners render sensibly, never crashing the page
-- [ ] `dataviz` guidance applied so the charts read as one consistent system (colour, axes, legend, light/dark)
-- [ ] README updated to mention the per-partner trends
-- [ ] Tests cover: chart rendering for a multi-run partner, the single-run edge case, and graceful handling of a series missing a metric
+- [x] Each partner card renders inline-SVG line charts for requests (listing vs download), deltas (added/changed/failed), and coverage %, one raw point per run
+- [x] Charts are drawn purely from ticket 13's data model — no new parsing/globbing/aggregation
+- [x] Zero external dependencies; the page remains one self-contained offline file
+- [x] Single-run and missing-metric partners render sensibly, never crashing the page
+- [x] `dataviz` guidance applied so the charts read as one consistent system (colour, axes, legend, light/dark)
+- [x] README updated to mention the per-partner trends
+- [x] Tests cover: chart rendering for a multi-run partner, the single-run edge case, and graceful handling of a series missing a metric

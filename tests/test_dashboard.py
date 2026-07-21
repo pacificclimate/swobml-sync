@@ -8,6 +8,7 @@ contract ticket 14 charts, so the shape it produces is asserted here in full.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from swobml_sync import dashboard
@@ -235,6 +236,110 @@ def test_render_escapes_a_partner_slug() -> None:
 
 def _empty_rollup() -> dashboard.Rollup:
     return dashboard.Rollup(0, 0, 0, 0, 0, 0, 0, 0)
+
+
+# --- rendering: per-partner time-series charts (ticket 14) ----------------
+
+
+def test_card_charts_render_over_a_multi_run_partners_series(tmp_path: Path) -> None:
+    # Three runs so every series has enough points to draw a line.
+    for i, ts in enumerate(
+        ("20260708T000000Z", "20260709T000000Z", "20260710T000000Z")
+    ):
+        _write_stats(
+            tmp_path,
+            "nb-firewx",
+            ts,
+            listing_requests=1 + i,
+            downloads=2 + i,
+            added=3 + i,
+            changed=2,
+            failed=i,
+            hours=6 + i,
+            possible=24,
+        )
+    html_out = dashboard.render(dashboard.aggregate(tmp_path))
+    # The charts are inline SVG with no runtime/CDN dependency added.
+    assert "<svg" in html_out
+    assert "http://" not in html_out and "https://" not in html_out
+    assert "<script" not in html_out
+    # All three chart kinds are present, each titled.
+    for title in ("Requests", "Deltas", "Coverage"):
+        assert title in html_out
+    # Every plotted series appears in a legend so identity is never colour-alone.
+    for label in ("Listing", "Downloads", "Added", "Changed", "Failed"):
+        assert label in html_out
+    # A multi-run series draws lines: requests (2) + deltas (3) + coverage (1).
+    assert html_out.count("<polyline") >= 6
+
+
+def test_card_single_run_renders_a_point_not_a_line(tmp_path: Path) -> None:
+    # One run: a line needs two points, so a lone run must render a dot, not a
+    # line, and must not crash the page.
+    _write_stats(
+        tmp_path,
+        "nb-firewx",
+        "20260710T000000Z",
+        listing_requests=5,
+        downloads=7,
+        added=3,
+        hours=12,
+        possible=24,
+    )
+    html_out = dashboard.render(dashboard.aggregate(tmp_path))
+    assert html_out.startswith("<!doctype html>")
+    assert "<svg" in html_out
+    # No two-point segment exists, so no polyline is drawn — only end-dots.
+    assert "<polyline" not in html_out
+    assert "<circle" in html_out
+
+
+def test_card_series_missing_a_metric_degrades_without_crashing(tmp_path: Path) -> None:
+    # Two runs whose coverage is uncomputable (possible == 0 -> coverage_pct is
+    # None). The coverage chart must degrade to empty rather than break the page,
+    # while requests/deltas still render.
+    for ts in ("20260709T000000Z", "20260710T000000Z"):
+        _write_stats(
+            tmp_path, "nb-firewx", ts, listing_requests=4, downloads=1, added=2
+        )
+    html_out = dashboard.render(dashboard.aggregate(tmp_path))
+    assert html_out.startswith("<!doctype html>")
+    # One card, three charts, still rendered.
+    assert html_out.count("<svg") == 3
+    assert "Coverage" in html_out
+    # The other charts still drew their lines.
+    assert "<polyline" in html_out
+
+
+def test_plot_points_centres_a_lone_point_and_gaps_none() -> None:
+    # A single value sits at the horizontal centre of the chart box.
+    (point,) = dashboard._plot_points([5.0], 0.0, 10.0)
+    assert point is not None
+    assert point[0] == dashboard._CHART_W / 2
+    # A None value is a gap in the series, not a plotted point.
+    assert dashboard._plot_points([None, 2.0], 0.0, 10.0)[0] is None
+    # A flat domain (min == max) places points mid-height rather than dividing by zero.
+    flat = dashboard._plot_points([3.0, 3.0], 3.0, 3.0)
+    assert flat[0] is not None and flat[0][1] == dashboard._CHART_H / 2
+
+
+def test_coverage_chart_uses_a_fixed_zero_to_hundred_axis(tmp_path: Path) -> None:
+    # Coverage is a percentage, so its line is plotted against a fixed 0-100 axis:
+    # a 48%-52% swing must read as a small wiggle, not fill the whole chart the way
+    # an auto-scaled min-max axis would.
+    _write_stats(tmp_path, "nb-firewx", "20260709T000000Z", hours=48, possible=100)
+    _write_stats(tmp_path, "nb-firewx", "20260710T000000Z", hours=52, possible=100)
+    html_out = dashboard.render(dashboard.aggregate(tmp_path))
+    coverage_svg = html_out.split("Coverage %", 1)[1]
+    points = re.search(r'points="([^"]+)"', coverage_svg).group(1)  # type: ignore[union-attr]
+    ys = [float(pair.split(",")[1]) for pair in points.split()]
+    # Both points sit in the middle band near y=50 (48/52 of 0-100), a couple of px
+    # apart — not spanning the full height as auto-scaling to 48-52 would give.
+    assert max(ys) - min(ys) < 5
+    assert all(
+        dashboard._CHART_INSET < y < dashboard._CHART_H - dashboard._CHART_INSET
+        for y in ys
+    )
 
 
 # --- CLI: writing, defaults, exit codes -----------------------------------

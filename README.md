@@ -67,7 +67,10 @@ It **scans one root** — the same `<dir>` the sync writes under — globbing
 runs. `--out` defaults to `<dir>/dashboard.html`. The page is one offline file
 with inline CSS and **zero external dependencies**: a cross-partner summary header
 (each partner's latest run, totalled) and one card per partner showing its latest
-request counts, added/changed/failed, and coverage.
+request counts, added/changed/failed, and coverage, plus **inline-SVG trend
+charts** of that partner's requests, deltas, and coverage over the retained run
+window (one point per run — the same retention that prunes `stats/*.json` bounds
+the history).
 
 It is **fail-closed**: a malformed or foreign JSON file under `stats/` is skipped
 with a warning, never fatal; a root with no stats renders a valid empty page and
