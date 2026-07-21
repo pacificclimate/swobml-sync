@@ -29,7 +29,7 @@ lasting consequences see [`docs/adr/`](../../docs/adr/).
 | 10 | [Moveable `--as-of` anchor](issues/10-as-of-anchor.md) | 03 | done |
 | 11 | [Availability discovery, gate & dynamic retention](issues/11-availability-discovery-and-gating.md) | 10, 07 | done |
 | 12 | [Request stats: count, surface & persist](issues/12-request-stats-count-persist.md) | — | done |
-| 13 | [Stats dashboard skeleton + aggregate data model](issues/13-dashboard-skeleton-and-data-model.md) | 12 | ready-for-agent |
+| 13 | [Stats dashboard skeleton + aggregate data model](issues/13-dashboard-skeleton-and-data-model.md) | 12 | done |
 | 14 | [Per-partner time-series charts](issues/14-partner-time-series-charts.md) | 13 | ready-for-agent |
 
 ```

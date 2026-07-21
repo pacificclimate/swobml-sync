@@ -54,13 +54,13 @@ touching parsing or aggregation.
 **Blocked by:** 12 — Request stats (needs `stats/<runts>.json` files on disk to
 aggregate).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `swobml-dashboard <dir> --out <path>` exists as its own console script over a new `dashboard` module
-- [ ] It globs `<dir>/*/stats/*.json`, discovering every partner and run under the root
-- [ ] Malformed/foreign JSON is skipped with a warning; an empty root renders a valid empty page and exits 0; no partial HTML is ever written
-- [ ] A pure, unit-tested aggregation layer produces the per-partner **full run series (sorted by runts)** plus latest-run and total views, and a cross-partner roll-up — this is the documented contract for ticket 14
-- [ ] Rendering is a thin layer over the model; output is one self-contained HTML file with inline CSS and zero external dependencies
-- [ ] The page shows a cross-partner summary header and one per-partner card of latest numbers, with room for charts
-- [ ] README documents the command; the data-model shape is noted for the next agent
-- [ ] Tests cover: globbing/partner discovery, skip of malformed files, empty-state, the full-series aggregation, and that the HTML embeds the modelled values
+- [x] `swobml-dashboard <dir> --out <path>` exists as its own console script over a new `dashboard` module
+- [x] It globs `<dir>/*/stats/*.json`, discovering every partner and run under the root
+- [x] Malformed/foreign JSON is skipped with a warning; an empty root renders a valid empty page and exits 0; no partial HTML is ever written
+- [x] A pure, unit-tested aggregation layer produces the per-partner **full run series (sorted by runts)** plus latest-run and total views, and a cross-partner roll-up — this is the documented contract for ticket 14
+- [x] Rendering is a thin layer over the model; output is one self-contained HTML file with inline CSS and zero external dependencies
+- [x] The page shows a cross-partner summary header and one per-partner card of latest numbers, with room for charts
+- [x] README documents the command; the data-model shape is noted for the next agent
+- [x] Tests cover: globbing/partner discovery, skip of malformed files, empty-state, the full-series aggregation, and that the HTML embeds the modelled values

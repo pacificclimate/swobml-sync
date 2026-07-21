@@ -53,6 +53,30 @@ manifests and logs. A re-run downloads only files that are new or whose upstream
 `(last-modified, size)` changed, so running twice against an unchanged source
 downloads nothing and writes an empty manifest.
 
+## Dashboard
+
+A separate command aggregates the per-run `stats/<runts>.json` files across every
+partner under one root into a single self-contained HTML page:
+
+```
+swobml-dashboard <dir> [--out PATH]
+```
+
+It **scans one root** — the same `<dir>` the sync writes under — globbing
+`<dir>/*/stats/*.json` to discover every partner (one per subdirectory) and its
+runs. `--out` defaults to `<dir>/dashboard.html`. The page is one offline file
+with inline CSS and **zero external dependencies**: a cross-partner summary header
+(each partner's latest run, totalled) and one card per partner showing its latest
+request counts, added/changed/failed, and coverage.
+
+It is **fail-closed**: a malformed or foreign JSON file under `stats/` is skipped
+with a warning, never fatal; a root with no stats renders a valid empty page and
+exits 0; and the HTML is written atomically, so a partial or broken file is never
+left behind. The command never runs a sync — it only reads what runs have already
+persisted. (The aggregation layer models each partner's *complete* run series, not
+just the latest; see the `swobml_sync.dashboard` module docstring for the model
+shape.)
+
 ## Development
 
 ```

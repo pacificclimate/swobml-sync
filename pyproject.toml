@@ -15,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 swobml-sync = "swobml_sync.cli:main"
+swobml-dashboard = "swobml_sync.dashboard:main"
 
 [project.optional-dependencies]
 dev = [
