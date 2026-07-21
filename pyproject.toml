@@ -7,10 +7,16 @@ name = "swobml-sync"
 version = "0.1.0"
 description = "Sync swob-ml partner observation files from the ECCC HPFX server to a local directory tree."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
     "requests>=2.31",
     "lxml>=5.0",
+]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 [project.scripts]
@@ -29,13 +35,16 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/swobml_sync"]
 
+# Format against the supported floor so no 3.12+-only syntax is emitted.
 [tool.black]
-target-version = ["py314"]
+target-version = ["py311"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+# Type-check against the floor (3.11) so use of newer-only stdlib/syntax is
+# caught even though development happens on 3.14.
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.11"
 strict = true
 files = ["src", "tests"]

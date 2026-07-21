@@ -9,8 +9,8 @@
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    // 3.14 is the project's floor (requires-python) and the version mypy is
-    // configured against, so develop on it rather than something newer.
+    // The project supports 3.11+ (requires-python), but development defaults to
+    // the latest supported release; mypy/black check against the 3.11 floor.
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.14"
     },
