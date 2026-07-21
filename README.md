@@ -37,13 +37,21 @@ A run writes everything under `<dir>/<partner>/`:
 <dir>/<partner>/
   cache/<day>/<station>/<file>   downloaded SWOB files
   manifests/<runts>.jsonl        this run's added/changed files (always written)
+  stats/<runts>.json             this run's request counts + outcome (see below)
   .sync-state.json               what has been downloaded (day → station → file)
 ```
 
-stdout is a single JSON summary line, `{manifest, added, changed, failed, days}`;
-progress and warnings go to stderr. A re-run downloads only files that are new
-or whose upstream `(last-modified, size)` changed, so running twice against an
-unchanged source downloads nothing and writes an empty manifest.
+stdout is a single JSON summary line,
+`{runts, added, changed, failed, days, coverage, listing_requests, downloads, manifest}`;
+progress and warnings go to stderr. `listing_requests` counts every
+directory-index fetch (availability discovery plus each day and station index)
+and `downloads` counts every SWOB file fetch — both **logical** requests, so the
+retries inside the HTTP client stay invisible. The same record (minus the local
+`manifest` path) is persisted per run to `stats/<runts>.json` for a separate
+dashboard tool to aggregate; stats files age out on the same retention horizon as
+manifests and logs. A re-run downloads only files that are new or whose upstream
+`(last-modified, size)` changed, so running twice against an unchanged source
+downloads nothing and writes an empty manifest.
 
 ## Development
 

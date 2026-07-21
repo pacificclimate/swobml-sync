@@ -96,3 +96,14 @@ reported per station. There is deliberately **no** day-level "complete"
 verdict — stations appear over time and some never publish all 24 hours, so a
 per-day percentage would be misleading.
 _Avoid_: completeness, complete day, fully synced
+
+**Run stats**:
+The per-run record of a run's logical web-request counts and outcome —
+`listing_requests` (every directory-index fetch: availability discovery plus each
+day and station index) and `downloads` (every SWOB file fetch), alongside
+`added`/`changed`/`failed`/`days`/`coverage`. Emitted on stdout and persisted as
+one file per run under `stats/<runts>.json`, on the same retention horizon as
+manifests and logs, for a separate dashboard tool to aggregate. Counts are
+**logical** (one per request, retries invisible), never HTTP round-trips. See
+ADR 0005.
+_Avoid_: metrics, telemetry, request log

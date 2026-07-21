@@ -18,20 +18,25 @@ persisted and the run exits non-zero (see the CLI) for the caller to retry.
 Each run also logs to a per-run file keyed by its ``runts`` (see
 :mod:`swobml_sync.logsetup`) and, at the end, reports hour coverage and purges
 everything past the retention horizon (see :mod:`swobml_sync.housekeeping`). The
-network lives entirely behind the injected :class:`HttpClient`.
+network lives entirely behind the injected :class:`HttpClient`, which the run
+wraps in a :class:`~swobml_sync.client.CountingClient` so every logical request
+is tallied and persisted as per-run stats beside the manifest (ticket 12).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from functools import partial
+from pathlib import Path
 
 from swobml_sync import availability as availability_mod
 from swobml_sync import housekeeping, layout, state as state_mod
-from swobml_sync.client import HttpClient, NotFound
+from swobml_sync.atomicio import write_atomic
+from swobml_sync.client import CountingClient, HttpClient, NotFound
 from swobml_sync.config import Config
 from swobml_sync.delta import ADDED, Delta, station_deltas
 from swobml_sync.housekeeping import CoverageSummary
@@ -48,7 +53,13 @@ _DAY_FORMAT = layout.DAY_FORMAT
 
 @dataclass
 class RunResult:
-    """The outcome of a run, mirrored by the stdout summary."""
+    """The outcome of a run, mirrored by the stdout summary and the stats file.
+
+    ``listing_requests`` (every directory-index fetch: availability discovery plus
+    each day and station index) and ``downloads`` (every SWOB file fetch) are the
+    run's logical web-request counts (ticket 12); their sum is the total, derived
+    on demand and never stored.
+    """
 
     manifest: str
     runts: str = ""
@@ -57,6 +68,33 @@ class RunResult:
     failed: int = 0
     days: list[str] = field(default_factory=list)
     coverage: CoverageSummary = field(default_factory=lambda: CoverageSummary(0, 0, 0))
+    listing_requests: int = 0
+    downloads: int = 0
+
+
+def run_record(result: RunResult) -> dict[str, object]:
+    """The run's outcome as a plain dict: the one serialization path behind both
+    the stdout summary and the persisted stats file.
+
+    The ``stats/<runts>.json`` record is exactly this; the stdout line is this plus
+    the run's ``manifest`` path. Keeping one function behind both means a field
+    added here surfaces in both places at once and can never drift between them.
+    """
+    return {
+        "runts": result.runts,
+        "added": result.added,
+        "changed": result.changed,
+        "failed": result.failed,
+        "days": result.days,
+        "coverage": asdict(result.coverage),
+        "listing_requests": result.listing_requests,
+        "downloads": result.downloads,
+    }
+
+
+def write_stats(path: Path, result: RunResult) -> None:
+    """Persist the run record to ``path`` as one JSON object, written atomically."""
+    write_atomic(path, (json.dumps(run_record(result)) + "\n").encode("utf-8"))
 
 
 @dataclass(frozen=True)
@@ -124,6 +162,10 @@ def run(
     now = now or datetime.now(timezone.utc)
     runts = now.strftime(_RUNTS_FORMAT)
     run_date = now.astimezone(timezone.utc).date()
+    # Wrap whatever client we were handed (real or the test fake) so every logical
+    # request this run makes is counted in one place, tests included, without any
+    # caller opting in (ticket 12). Its two totals are read into the result below.
+    counting = CountingClient(client)
     # The whole run logs to a file keyed by runts alongside its manifest, so the
     # log, manifest, and stdout summary all share one correlation key (ticket 06).
     with run_log_file(
@@ -132,7 +174,7 @@ def run(
         # One cheap discovery request per run learns the day span the server still
         # offers. A total discovery failure aborts here (Tier 1) before any sync
         # work; the window then drives both the input gate and retention (ticket 11).
-        window = availability_mod.discover(client)
+        window = availability_mod.discover(counting)
 
         # Explicit --date days replace the window; otherwise the rolling lookback of
         # anchor…anchor-N, where the anchor is --as-of when given, else today. Only
@@ -157,7 +199,7 @@ def run(
 
         state = state_mod.load(layout.state_path(config.directory, config.partner))
         result = RunResult(manifest="", runts=runts, days=days)
-        records = _run_phases(config, client, days, state, result)
+        records = _run_phases(config, counting, days, state, result)
 
         # End-of-run housekeeping over the post-download state: report each
         # station's hour coverage (aggregate into the summary), then purge state
@@ -173,13 +215,24 @@ def run(
         )
         write_manifest(manifest_path, records)
         result.manifest = str(manifest_path)
+
+        # Read the run's logical request totals off the counting client, then
+        # persist the whole run record beside the manifest for a later dashboard to
+        # aggregate (tickets 12–14). The stdout summary emits the same record.
+        result.listing_requests = counting.listing_requests
+        result.downloads = counting.downloads
+        write_stats(layout.stats_path(config.directory, config.partner, runts), result)
+
         log.info(
-            "run %s complete: added=%d changed=%d failed=%d days=%s",
+            "run %s complete: added=%d changed=%d failed=%d days=%s "
+            "listing_requests=%d downloads=%d",
             runts,
             result.added,
             result.changed,
             result.failed,
             ",".join(days),
+            result.listing_requests,
+            result.downloads,
         )
     return result
 

@@ -115,26 +115,32 @@ def _touch(path: Path) -> None:
     path.write_text("x", encoding="utf-8")
 
 
-def test_purge_run_files_deletes_old_manifests_and_logs(tmp_path: Path) -> None:
+def test_purge_run_files_deletes_old_manifests_logs_and_stats(tmp_path: Path) -> None:
     partner = "nb-firewx"
     old = "20260101T000000Z"
     recent = "20260709T120000Z"
     manifests = layout.manifests_dir(tmp_path, partner)
     logs = layout.logs_dir(tmp_path, partner)
+    stats = layout.stats_dir(tmp_path, partner)
     _touch(manifests / f"{old}.jsonl")
     _touch(manifests / f"{recent}.jsonl")
     _touch(logs / f"{old}.log")
     _touch(logs / f"{recent}.log")
+    _touch(stats / f"{old}.json")
+    _touch(stats / f"{recent}.json")
 
     removed = housekeeping.purge_run_files(
         tmp_path, partner, RUN_DATE, retention_days=65
     )
 
-    assert {p.name for p in removed} == {f"{old}.jsonl", f"{old}.log"}
+    # Stats files age out on the same horizon as manifests and logs.
+    assert {p.name for p in removed} == {f"{old}.jsonl", f"{old}.log", f"{old}.json"}
     assert not (manifests / f"{old}.jsonl").exists()
     assert (manifests / f"{recent}.jsonl").exists()
     assert not (logs / f"{old}.log").exists()
     assert (logs / f"{recent}.log").exists()
+    assert not (stats / f"{old}.json").exists()
+    assert (stats / f"{recent}.json").exists()
 
 
 def test_purge_run_files_ignores_foreign_names(tmp_path: Path) -> None:

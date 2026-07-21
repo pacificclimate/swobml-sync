@@ -62,12 +62,12 @@ file fetch). Total web requests is their sum, derived, never stored.
 **Blocked by:** None — can start immediately. (Builds on the finished sync tool:
 the `HttpClient` seam from ticket 05 and the per-run-file purge from ticket 07.)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `CountingClient` wraps an `HttpClient` and counts `get_text` as `listing_requests` and `download` as `downloads`, thread-safely, once per logical call (including 404s and failures)
-- [ ] `run()` wraps whatever client it is given so the counts cover real and fake clients alike, and reads the totals into `RunResult`
-- [ ] `listing_requests` and `downloads` appear on the stdout JSON summary
-- [ ] Each run writes `<dir>/<partner>/stats/<runts>.json` as a superset of the stdout line
-- [ ] `purge_run_files` sweeps `stats/` on the same runts horizon as manifests/logs; foreign files and the current run's file are never removed
-- [ ] ADR 0005 written; CONTEXT.md *Run stats* term added; README Output section updated
-- [ ] Tests cover: counting across the three listing sites + downloads, 404/failure still counted, thread-safe totals under concurrency, the persisted file's shape, and stats-file purge on the horizon
+- [x] `CountingClient` wraps an `HttpClient` and counts `get_text` as `listing_requests` and `download` as `downloads`, thread-safely, once per logical call (including 404s and failures)
+- [x] `run()` wraps whatever client it is given so the counts cover real and fake clients alike, and reads the totals into `RunResult`
+- [x] `listing_requests` and `downloads` appear on the stdout JSON summary
+- [x] Each run writes `<dir>/<partner>/stats/<runts>.json` as a superset of the stdout line
+- [x] `purge_run_files` sweeps `stats/` on the same runts horizon as manifests/logs; foreign files and the current run's file are never removed
+- [x] ADR 0005 written; CONTEXT.md *Run stats* term added; README Output section updated
+- [x] Tests cover: counting across the three listing sites + downloads, 404/failure still counted, thread-safe totals under concurrency, the persisted file's shape, and stats-file purge on the horizon

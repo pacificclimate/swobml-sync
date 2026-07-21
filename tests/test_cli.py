@@ -49,6 +49,13 @@ def test_main_runs_and_prints_json_summary(
     # The summary carries an aggregate coverage figure (empty day: zeroes) and
     # never a day-level completeness verdict.
     assert summary["coverage"] == {"station_days": 0, "hours": 0, "possible": 0}
+    # The run's logical request counts surface on the stdout summary: the root
+    # index (discovery) + the one day index = 2 listings, nothing downloaded.
+    assert summary["listing_requests"] == 2
+    assert summary["downloads"] == 0
+    # The same record is persisted for a later dashboard to aggregate.
+    stats_file = tmp_path / "nb-firewx" / "stats" / f"{summary['runts']}.json"
+    assert json.loads(stats_file.read_text())["listing_requests"] == 2
 
 
 def test_main_errors_without_required_args() -> None:

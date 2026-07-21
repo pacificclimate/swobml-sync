@@ -598,3 +598,79 @@ def test_cli_returns_nonzero_on_gate_failure(tmp_path: Path) -> None:
         client=FakeClient(_pages(), _bodies()),
     )
     assert code == cli.EXIT_PREFLIGHT != 0
+
+
+# --- ticket 12: request stats: count, surface & persist ----------------------
+
+
+def test_run_counts_listing_requests_and_downloads(tmp_path: Path) -> None:
+    result = run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)
+
+    # Listings span all three sites: the root index (discovery) + the day index +
+    # one index per station (kenn, eutk) = 4; three SWOB files are downloaded.
+    assert result.listing_requests == 4
+    assert result.downloads == 3
+
+
+def test_run_counts_requests_even_when_they_fail(tmp_path: Path) -> None:
+    from swobml_sync.client import NotFound
+
+    bodies = _bodies()
+    # eutk's one file download will fail permanently (its body is missing)...
+    del bodies[layout.file_url(PARTNER, DAY, "eutk", FILES["eutk"][0])]
+    # ...and kenn's station listing 404s (absent upstream) — but the fetch still
+    # happened, so both the 404 listing and the failed download still count.
+    client = FakeClient(
+        _pages(),
+        bodies,
+        text_errors={layout.station_url(PARTNER, DAY, "kenn"): NotFound("gone")},
+    )
+    result = run(_config(tmp_path), client, now=NOW)
+
+    # root + day + kenn(404) + eutk = 4 listings, counted despite kenn's 404.
+    assert result.listing_requests == 4
+    # Only eutk's one file is attempted (kenn 404'd, so no deltas); it fails, but a
+    # request was issued, so it counts.
+    assert result.downloads == 1
+    assert result.failed == 1
+
+
+def test_run_persists_stats_file_as_superset_of_stdout(tmp_path: Path) -> None:
+    result = run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)
+
+    stats_file = layout.stats_path(tmp_path, PARTNER, result.runts)
+    assert stats_file.exists()
+    record = json.loads(stats_file.read_text())
+    # The persisted record is the full run record: the exact fields the stdout line
+    # carries (bar its local manifest path), so a dashboard can aggregate it.
+    assert record == {
+        "runts": result.runts,
+        "added": 3,
+        "changed": 0,
+        "failed": 0,
+        "days": [DAY],
+        "coverage": {"station_days": 2, "hours": 3, "possible": 48},
+        "listing_requests": 4,
+        "downloads": 3,
+    }
+
+
+def test_run_purges_stats_files_past_retention(tmp_path: Path) -> None:
+    # Stats files age out on the same runts horizon as manifests and logs: a stale
+    # one is swept, a recent one survives, a foreign name is left alone, and this
+    # run's own stats file (today's runts) is never in scope.
+    stale_runts = "20260101T000000Z"
+    recent_runts = "20260601T000000Z"
+    for runts in (stale_runts, recent_runts):
+        stats = layout.stats_path(tmp_path, PARTNER, runts)
+        stats.parent.mkdir(parents=True, exist_ok=True)
+        stats.write_text("{}\n")
+    foreign = layout.stats_dir(tmp_path, PARTNER) / "README.txt"
+    foreign.write_text("x")
+
+    result = run(_config(tmp_path), FakeClient(_pages(), _bodies()), now=NOW)
+
+    assert not layout.stats_path(tmp_path, PARTNER, stale_runts).exists()
+    assert layout.stats_path(tmp_path, PARTNER, recent_runts).exists()
+    assert layout.stats_path(tmp_path, PARTNER, result.runts).exists()
+    assert foreign.exists()

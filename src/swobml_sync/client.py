@@ -19,6 +19,7 @@ interrupted run never leaves a truncated SWOB file behind.
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Lock
 from typing import Protocol
 
 import requests
@@ -115,3 +116,41 @@ class RequestsClient:
         response = self._session.get(url, timeout=self._timeout)
         response.raise_for_status()
         write_atomic(dest, response.content)
+
+
+class CountingClient:
+    """An :class:`HttpClient` decorator that tallies the logical requests a run makes.
+
+    Wraps any :class:`HttpClient` and forwards :meth:`get_text`/:meth:`download`
+    unchanged, counting each **logical** call — one per method invocation, never a
+    round-trip: the retries urllib3 makes inside a single call stay invisible, so a
+    listing retried twice before succeeding is one ``listing_request``. The count
+    lands *before* the inner call, so a call that raises (a ``404``/:class:`NotFound`
+    or a permanent failure after retries) still counts — a request was issued
+    regardless of outcome.
+
+    This is the one place counting lives, so the sync phases and
+    :class:`RequestsClient` stay untouched. Its two totals are read once at end of
+    run into the :class:`~swobml_sync.sync.RunResult`.
+
+    Thread-safe: the sync phases fan :meth:`get_text`/:meth:`download` out across a
+    bounded pool, so the increments are guarded by a lock.
+    """
+
+    def __init__(self, inner: HttpClient) -> None:
+        self._inner = inner
+        self._lock = Lock()
+        self.listing_requests = 0
+        self.downloads = 0
+
+    def get_text(self, url: str) -> str:
+        """Count one ``listing_request`` (every directory-index fetch), then forward."""
+        with self._lock:
+            self.listing_requests += 1
+        return self._inner.get_text(url)
+
+    def download(self, url: str, dest: Path) -> None:
+        """Count one ``download`` (every SWOB file fetch), then forward."""
+        with self._lock:
+            self.downloads += 1
+        self._inner.download(url, dest)

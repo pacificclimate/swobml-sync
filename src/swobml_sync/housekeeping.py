@@ -11,7 +11,7 @@ CONTEXT.md): stations appear over time and some never publish all 24 hours, so a
 per-day percentage would mislead.
 
 *Retention purge.* Anything older than the retention horizon is dropped:
-sync-state entries for expired days, and the manifest and log files whose
+sync-state entries for expired days, and the manifest, log, and stats files whose
 ``runts`` predates the horizon. Automatic purge derives the horizon from the
 server's discovered availability window (:func:`auto_retention_days`), clamped up
 to a 30-day floor so a truncated index can never delete recent state; an explicit
@@ -159,17 +159,21 @@ def purge_state(state: SyncState, run_date: date, retention_days: int) -> list[s
 def purge_run_files(
     directory: Path, partner: str, run_date: date, retention_days: int
 ) -> list[Path]:
-    """Delete manifest and log files whose ``runts`` predates the horizon.
+    """Delete manifest, log, and stats files whose ``runts`` predates the horizon.
 
     Only files named by a parseable ``runts`` are considered, so a foreign file
     dropped into these directories is never removed. Missing directories (a
-    partner that has not written either yet) are not an error.
+    partner that has not written any of them yet) are not an error. Per-run stats
+    files (ticket 12) age out on the same horizon as manifests and logs; the
+    current run's own ``stats/<runts>.json`` carries today's runts and so is never
+    in scope.
     """
     horizon = _horizon(run_date, retention_days)
     removed: list[Path] = []
     for folder in (
         layout.manifests_dir(directory, partner),
         layout.logs_dir(directory, partner),
+        layout.stats_dir(directory, partner),
     ):
         if not folder.is_dir():
             continue

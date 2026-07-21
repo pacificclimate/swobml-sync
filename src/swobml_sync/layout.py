@@ -73,6 +73,11 @@ def logs_dir(directory: Path, partner: str) -> Path:
     return directory / partner / "logs"
 
 
+def stats_dir(directory: Path, partner: str) -> Path:
+    """The per-partner directory holding one run-stats file per run."""
+    return directory / partner / "stats"
+
+
 def default_manifest_path(directory: Path, partner: str, runts: str) -> Path:
     """The default manifest location for a run, keyed by its ``runts``."""
     return manifests_dir(directory, partner) / f"{runts}.jsonl"
@@ -81,3 +86,8 @@ def default_manifest_path(directory: Path, partner: str, runts: str) -> Path:
 def log_path(directory: Path, partner: str, runts: str) -> Path:
     """The per-run log file, keyed by the same ``runts`` as its manifest."""
     return logs_dir(directory, partner) / f"{runts}.log"
+
+
+def stats_path(directory: Path, partner: str, runts: str) -> Path:
+    """The per-run stats file, keyed by the same ``runts`` as its manifest."""
+    return stats_dir(directory, partner) / f"{runts}.json"

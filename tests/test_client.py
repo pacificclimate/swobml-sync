@@ -12,12 +12,13 @@ from __future__ import annotations
 import contextlib
 import threading
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
 
-from swobml_sync.client import NotFound, RequestsClient
+from swobml_sync.client import CountingClient, NotFound, RequestsClient
 
 # A backoff of zero keeps retry tests instant; production backoff is exercised by
 # the policy's real default, not by these behavioural tests.
@@ -106,3 +107,86 @@ def test_download_failure_after_retries_leaves_no_file(tmp_path: Path) -> None:
         ):  # noqa: PT011 - transient give-up surfaces as an error
             client.download(f"{base}/f.xml", dest)
         assert not dest.exists()
+
+
+# --- CountingClient (ticket 12) ----------------------------------------------
+
+
+class _RecordingClient:
+    """A minimal inner client CountingClient can wrap; optionally always fails."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.get_text_calls = 0
+        self.download_calls = 0
+
+    def get_text(self, url: str) -> str:
+        self.get_text_calls += 1
+        if self.fail:
+            raise RuntimeError("boom")
+        return "<pre></pre>"
+
+    def download(self, url: str, dest: Path) -> None:
+        self.download_calls += 1
+        if self.fail:
+            raise RuntimeError("boom")
+
+
+def test_counting_client_forwards_and_tallies_by_method() -> None:
+    inner = _RecordingClient()
+    client = CountingClient(inner)
+
+    assert client.get_text("u1") == "<pre></pre>"
+    client.get_text("u2")
+    client.download("f1", Path("d1"))
+
+    # get_text is a listing_request, download is a download; the inner client is
+    # still called through (forwarding), each exactly once.
+    assert (client.listing_requests, client.downloads) == (2, 1)
+    assert (inner.get_text_calls, inner.download_calls) == (2, 1)
+
+
+def test_counting_client_counts_notfound_and_failures() -> None:
+    # Every logical call counts regardless of outcome: a request was still issued.
+    client = CountingClient(_RecordingClient(fail=True))
+    for _ in range(3):
+        with pytest.raises(RuntimeError):
+            client.get_text("u")
+    with pytest.raises(RuntimeError):
+        client.download("f", Path("d"))
+
+    not_found = CountingClient(_NotFoundClient())
+    with pytest.raises(NotFound):
+        not_found.get_text("u")
+
+    assert (client.listing_requests, client.downloads) == (3, 1)
+    assert (not_found.listing_requests, not_found.downloads) == (1, 0)
+
+
+class _NotFoundClient:
+    def get_text(self, url: str) -> str:
+        raise NotFound(url)
+
+    def download(self, url: str, dest: Path) -> None:  # pragma: no cover - unused
+        raise AssertionError("not called")
+
+
+def test_counting_client_is_thread_safe_under_concurrency() -> None:
+    # The sync phases fan get_text/download out across a bounded pool, so the
+    # increments must be guarded: concurrent calls must not lose a count.
+    client = CountingClient(_RecordingClient())
+    calls = 500
+
+    def hit(i: int) -> None:
+        if i % 2 == 0:
+            client.get_text("u")
+        else:
+            client.download("f", Path("d"))
+
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        for future in [pool.submit(hit, i) for i in range(calls)]:
+            future.result()
+
+    assert client.listing_requests + client.downloads == calls
+    assert client.listing_requests == calls // 2
+    assert client.downloads == calls // 2
